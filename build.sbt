@@ -69,6 +69,7 @@ lazy val commonSettings = Seq(
     "org.scalatest" % "scalatest_2.11" % "2.2.4",
     "ch.qos.logback" % "logback-classic" % "1.1.7"
   ),
+  scalacOptions ++= Seq("-unchecked", "-feature", "-language:postfixOps"),
   fork := true,
   connectInput in run := true,
   headers := Map(

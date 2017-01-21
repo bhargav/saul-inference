@@ -22,7 +22,7 @@ class InferenceManager {
   // greater or equal to: ax >= b
   case class ILPInequalityGEQ(a: Array[Double], x: Array[Int], b: Double)
 
-  def processConstraints[V <: Any](saulConstraint: Constraint[V], solver: ILPSolver)(implicit tag: ClassTag[V]): Set[ILPInequalityGEQ] = {
+  def processConstraints[V <: Any](saulConstraint: Constraint[V], solver: ILPSolver): Set[ILPInequalityGEQ] = {
 
     saulConstraint match {
       case c: PropositionalEqualityConstraint[V] =>
@@ -206,13 +206,13 @@ class InferenceManager {
           }
         }.toSet
 
-      case c: PairConjunction[V, Any] =>
+      case c: PairConjunction[V, _] =>
         val InequalitySystem1 = processConstraints(c.c1, solver)
         val InequalitySystem2 = processConstraints(c.c2, solver)
 
         // conjunction is simple; you just include all the inequalities
         InequalitySystem1 union InequalitySystem2
-      case c: PairDisjunction[V, Any] => // TODO: how to get rid of these 'Any' types, and maybe replace with _?
+      case c: PairDisjunction[V, _] =>
         val InequalitySystem1 = processConstraints(c.c1, solver)
         val InequalitySystem2 = processConstraints(c.c2, solver)
         val y1 = solver.addBooleanVariable(0.0)
@@ -250,7 +250,7 @@ class InferenceManager {
           val minusB = -in.b + epsilon
           ILPInequalityGEQ(minusA, in.x, minusB)
         }
-      case c: AtLeast[V, Any] =>
+      case c: AtLeast[V, _] =>
         val InequalitySystems = c.constraints.map { processConstraints(_, solver) }
         // for each inequality ax >= b we introduce a binary variable y
         // and convert the constraint to ax >= by + (1-y).min(ax) and ax < (b-e)(1-y) + y.max(ax)
@@ -279,7 +279,7 @@ class InferenceManager {
         // add a new constraint: at least k constraints should be active
         inequalities.flatten +
           ILPInequalityGEQ(newAuxillaryVariables.toArray.map(_ => 1.0), newAuxillaryVariables.toArray, c.k)
-      case c: AtMost[V, Any] =>
+      case c: AtMost[V, _] =>
         val InequalitySystems = c.constraints.map { processConstraints(_, solver) }
         // for each inequality ax >= b we introduce a binary variable y
         // and convert the constraint to ax >= by + (1-y).min(ax) and ax < (b-e)(1-y) + y.max(ax)
@@ -308,7 +308,7 @@ class InferenceManager {
         // add a new constraint: at least k constraints should be active
         inequalities.flatten +
           ILPInequalityGEQ(newAuxillaryVariables.toArray.map(_ => -1.0), newAuxillaryVariables.toArray, -c.k)
-      case c: Exactly[V, Any] =>
+      case c: Exactly[V, _] =>
         val InequalitySystems = c.constraints.map { processConstraints(_, solver) }
         // for each inequality ax >= b we introduce a binary variable y
         // and convert the constraint to ax >= by + (1-y).min(ax) and ax < (b-e)(1-y) + y.max(ax)
@@ -339,7 +339,7 @@ class InferenceManager {
           ILPInequalityGEQ(newAuxillaryVariables.toArray.map(_ => 1.0), newAuxillaryVariables.toArray, c.k),
           ILPInequalityGEQ(newAuxillaryVariables.toArray.map(_ => -1.0), newAuxillaryVariables.toArray, -c.k)
         )
-      case c: ForAll[V, Any] =>
+      case c: ForAll[V, _] =>
         c.constraints.flatMap { processConstraints(_, solver) }
       case _ =>
         throw new Exception("Saul implication is converted to other operations. ")

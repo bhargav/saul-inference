@@ -13,6 +13,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import scala.collection.JavaConverters._
+import scala.language.implicitConversions
 
 object Constraint {
   implicit class LearnerToFirstOrderConstraint1(estimator: LBJLearnerEquivalent) {
