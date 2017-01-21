@@ -69,6 +69,7 @@ lazy val commonSettings = Seq(
     "org.scalatest" % "scalatest_2.11" % "2.2.4",
     "ch.qos.logback" % "logback-classic" % "1.1.7"
   ),
+  scalacOptions ++= Seq("-unchecked", "-feature", "-language:postfixOps"),
   fork := true,
   connectInput in run := true,
   headers := Map(
@@ -105,7 +106,8 @@ lazy val saulExamples = (project in file("saul-examples")).
       ccgGroupId % "saul-er-models" % "1.8",
       ccgGroupId % "saul-srl-models" % "1.3",
       "org.json" % "json" % "20140107",
-      "com.twitter" % "hbc-core" % "2.2.0"
+      "com.twitter" % "hbc-core" % "2.2.0",
+      "org.rogach" %% "scallop" % "2.0.5"
     )
   ).dependsOn(saulCore)
   .aggregate(saulCore)
