@@ -20,14 +20,14 @@ object OrgClassifier extends Learnable[ConllRawToken](ErDataModelExample) {
 ```
 ### Training and Testing classifiers
 
--Call `train()` method to train your classifier using the populated data in the data model's training instances:
+ - Call `train()` method to train your classifier using the populated data in the data model's training instances:
 
 ```scala
 OrgClassifier.learn(numberOfIterations)
 ```
 where number of iteration determines how many times the training algorithm should iterate over training data.
 
--Call `test()` method to test your classifier using the populated data model's test instance:
+ - Call `test()` method to test your classifier using the populated data model's test instance:
 
 ```scala
 OrgClassifier.test()
@@ -145,6 +145,17 @@ in order to have the following operators work:
 import edu.illinois.cs.cogcomp.saul.infer.Constraint._
 ```
 
+#### `Node` as starting point 
+
+In Saul the starting point for writing programs are nodes. The `ForEach` operator, connects a node (and its instances) to constraints. For example: 
+
+```scala 
+someNode.ForEach { x: HEAD_TYPE => Some-Constraint-On-X }
+```   
+
+where `Some-Constraint-On-X` is a constraint (which we will define in the following sections). 
+An important point here is that, if you are defining using a constrained classifier with head type `HEAD_TYPE`, the definition of the constraint have to start with the node corresponding to this type.  
+
 #### Propositional constraints
   This defines constraint on the prediction of a classifier on a given instance. Here is the basic form. Consider an 
    imaginary classifier `SomeClassifier` which returns `A` or  `B`. Here is how we create propositional constraint 
@@ -202,7 +213,6 @@ This operators distribute the definitions of the constraints over collections. H
 
 | Operator | Definition |  Example  |
 |----------|------------|---------|---|
-| `ForEach`  |  This operator works only on `Node`s. For each single instance in the node. This is often times one of the starting points for defining constraints. So if you are defining using a constrained classifier with head type `HEAD_TYPE`, we the definition of the constraint have to start with the node corresponding to this type.  |  `textAnnotationNode.ForEach { x: TextAnnotation => Some-Constraint-On-X }`   |     
 | `ForAll`   |  For **all** the elements in the collection it applies the constraints. In other words, the constrain should hold for **all** elements of the collection.   |  `textAnnotationNode.ForAll { x: TextAnnotation => Some-Constraint-On-x }`  |    
 | `Exists`    | The constrain should hold for **at least one** element of the collection.   |  `textAnnotationNode.Exists { x: TextAnnotation => Some-Constraint-On-x }` | 
 | `AtLeast(k: Int)`  |  The constrain should hold for **at least `k`** elements of the collection.  |  `textAnnotationNode.AtLeast(2) { x: TextAnnotation => Some-Constraint-On-x }` |  
