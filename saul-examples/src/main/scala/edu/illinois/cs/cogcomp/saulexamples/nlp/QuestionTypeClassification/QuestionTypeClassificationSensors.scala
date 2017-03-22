@@ -10,7 +10,7 @@ import java.io.File
 import java.util.Properties
 
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
-import edu.illinois.cs.cogcomp.nlp.common.PipelineConfigurator._
+import edu.illinois.cs.cogcomp.pipeline.common.PipelineConfigurator._
 import edu.illinois.cs.cogcomp.saulexamples.nlp.TextAnnotationFactory
 
 import scala.io.Source

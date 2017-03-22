@@ -11,7 +11,7 @@ import java.util.Properties
 import edu.illinois.cs.cogcomp.annotation.AnnotatorService
 import edu.illinois.cs.cogcomp.core.datastructures.IntPair
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation._
-import edu.illinois.cs.cogcomp.nlp.common.PipelineConfigurator._
+import edu.illinois.cs.cogcomp.pipeline.common.PipelineConfigurator._
 import edu.illinois.cs.cogcomp.saul.util.Logging
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SpatialRoleLabeling.SpRL2013.SpRL2013Document
 import edu.illinois.cs.cogcomp.saulexamples.nlp.TextAnnotationFactory
