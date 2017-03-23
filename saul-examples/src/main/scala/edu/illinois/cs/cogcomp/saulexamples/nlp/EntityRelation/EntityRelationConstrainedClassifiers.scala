@@ -6,8 +6,8 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.nlp.EntityRelation
 
-import edu.illinois.cs.cogcomp.saul.classifier.infer.{ ConstrainedClassifier, OJAlgo }
-import edu.illinois.cs.cogcomp.saulexamples.EntityMentionRelation.datastruct.{ ConllRawToken, ConllRelation }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.{ConstrainedClassifier, FactorConstrainedClassifier, OJAlgo}
+import edu.illinois.cs.cogcomp.saulexamples.EntityMentionRelation.datastruct.{ConllRawToken, ConllRelation}
 
 object EntityRelationConstrainedClassifiers {
   object OrgConstrainedClassifier extends ConstrainedClassifier[ConllRawToken, ConllRelation] {
@@ -44,6 +44,11 @@ object EntityRelationConstrainedClassifiers {
     override lazy val onClassifier = EntityRelationClassifiers.LivesInClassifier
     override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
     override def solverType = OJAlgo
+  }
+
+  object LivesInFactorConstrainedClassifier extends FactorConstrainedClassifier[ConllRelation, ConllRelation](EntityRelationDataModel.pairs) {
+    override def onClassifier = EntityRelationClassifiers.LivesInClassifier
+    override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
   }
 }
 

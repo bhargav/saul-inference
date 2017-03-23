@@ -64,6 +64,7 @@ lazy val commonSettings = Seq(
     ccgGroupId % "illinois-core-utilities" % cogcompNLPVersion withSources,
     ccgGroupId % "illinois-inference" % cogcompNLPVersion withSources,
     "com.gurobi" % "gurobi" % "7.0.1",
+    "cc.factorie" %% "factorie" % "1.2",
     "org.apache.commons" % "commons-math3" % "3.6.1",
     "org.scalatest" % "scalatest_2.11" % "2.2.4",
     "ch.qos.logback" % "logback-classic" % "1.1.7"

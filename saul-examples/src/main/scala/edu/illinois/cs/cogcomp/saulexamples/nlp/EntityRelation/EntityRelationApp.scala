@@ -25,7 +25,7 @@ object EntityRelationApp extends Logging {
 
   def main(args: Array[String]): Unit = {
     /** Choose the experiment you're interested in by changing the following line */
-    val testType = ERExperimentType.LPlusI
+    val testType = ERExperimentType.FactorConstrained
 
     testType match {
       case ERExperimentType.IndependentClassifiers => trainIndependentClassifiers()
@@ -35,11 +35,12 @@ object EntityRelationApp extends Logging {
       case ERExperimentType.LPlusI => runLPlusI()
       case ERExperimentType.JointTraining => runJointTraining()
       case ERExperimentType.InteractiveMode => interactiveWithPretrainedModels()
+      case ERExperimentType.FactorConstrained => runFactorConstrained()
     }
   }
 
   object ERExperimentType extends Enumeration {
-    val IndependentClassifiers, LPlusI, TestFromModel, JointTraining, PipelineTraining, PipelineTestFromModel, InteractiveMode = Value
+    val IndependentClassifiers, LPlusI, TestFromModel, JointTraining, PipelineTraining, PipelineTestFromModel, InteractiveMode, FactorConstrained = Value
   }
 
   /** in this scenario we train and test classifiers independent of each other. In particular, the relation classifier
@@ -68,8 +69,9 @@ object EntityRelationApp extends Logging {
       PersonClassifier, OrganizationClassifier, LocationClassifier,
       WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier
     )
-    ClassifierUtils.TestClassifiers(PersonClassifier, OrganizationClassifier, LocationClassifier,
-      WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
+//    ClassifierUtils.TestClassifiers(PersonClassifier, OrganizationClassifier, LocationClassifier,
+//      WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
+    ClassifierUtils.TestClassifiers(LivesInClassifier)
   }
 
   /** in this scenario the named entity recognizers are trained independently, and given to a relation classifier as
@@ -173,5 +175,16 @@ object EntityRelationApp extends Logging {
         case _ => return
       }
     }
+  }
+
+  def runFactorConstrained(): Unit = {
+    populateWithConll()
+
+    // load pre-trained independent models, the following lines (loading pre-trained models) are not necessary,
+    // although without pre-training the performance might drop.
+    ClassifierUtils.LoadClassifier(jarModelPath, PersonClassifier, OrganizationClassifier, LocationClassifier,
+      WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
+
+    LivesInFactorConstrainedClassifier.test()
   }
 }
