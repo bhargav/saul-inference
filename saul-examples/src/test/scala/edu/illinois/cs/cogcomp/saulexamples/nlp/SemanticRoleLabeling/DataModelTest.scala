@@ -7,6 +7,7 @@
 package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
+import edu.illinois.cs.cogcomp.core.datastructures.textannotation.TextAnnotation
 import edu.illinois.cs.cogcomp.core.utilities.DummyTextAnnotationGenerator
 import org.scalatest.{ FlatSpec, Matchers }
 
@@ -18,12 +19,9 @@ class DataModelTest extends FlatSpec with Matchers {
     ViewNames.PARSE_GOLD, ViewNames.SRL_VERB
   )
 
-  val ta = {
-    val taTmp = DummyTextAnnotationGenerator.generateAnnotatedTextAnnotation(viewsToAdd, false, 1)
-    // included here, in order to make sure population is done before making any queries
-    sentences.populate(List(taTmp))
-    taTmp
-  }
+  SRLMultiGraphDataModel.clearInstances()
+  val taTmp: TextAnnotation = DummyTextAnnotationGenerator.generateAnnotatedTextAnnotation(viewsToAdd, false, 1)
+  sentences.populate(List(taTmp), train = false)
 
   "graph population" should "be correct" in {
     sentences().size should be(1)
@@ -104,5 +102,4 @@ class DataModelTest extends FlatSpec with Matchers {
     (relations() prop containsNEG).toSet should be(Set("", ""))
     (relations() prop containsMOD).toSet should be(Set("", ""))
   }
-
 }

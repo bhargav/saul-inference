@@ -6,11 +6,20 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
+import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
 import edu.illinois.cs.cogcomp.saul.classifier.ClassifierUtils
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers._
 import org.scalatest.{ FlatSpec, Matchers }
 
 class ModelsTest extends FlatSpec with Matchers {
+
+  val viewsToAdd = Array(
+    ViewNames.LEMMA, ViewNames.POS, ViewNames.SHALLOW_PARSE,
+    ViewNames.PARSE_GOLD, ViewNames.SRL_VERB
+  )
+
+  SRLMultiGraphDataModel.clearInstances()
+  PopulateSRLDataModel(testOnly = true, useGoldPredicate = true, useGoldArgBoundaries = true)
 
   "argument type classifier (aTr)" should "work." in {
     ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/", argumentTypeLearner)
