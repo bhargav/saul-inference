@@ -24,7 +24,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
   lazy val clauseViewGenerator = ClauseViewGenerator.STANFORD
 
   override def addView(ta: TextAnnotation): Unit = {
-
+    checkPrequisites(ta)
 
     SRLApps.srlDataModelObject.clearInstances()
 
