@@ -6,8 +6,7 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.data;
 
-import edu.illinois.cs.cogcomp.core.utilities.configuration.ResourceManager;
-import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConfigurator;
+import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLscalaConfigurator;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -24,8 +23,7 @@ public class SRLFrameManagerTest {
 
     @Before
     public void setUp() throws Exception {
-        ResourceManager rm = new SRLConfigurator().getDefaultConfig();
-        frameManager = new SRLFrameManager(rm.getString(SRLConfigurator.PROPBANK_HOME.key));
+        frameManager = new SRLFrameManager(SRLscalaConfigurator.PROPBANK_HOME());
     }
 
     @Test

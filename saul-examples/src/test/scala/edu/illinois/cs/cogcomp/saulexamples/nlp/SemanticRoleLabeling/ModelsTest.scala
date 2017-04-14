@@ -13,7 +13,7 @@ import org.scalatest.{ FlatSpec, Matchers }
 class ModelsTest extends FlatSpec with Matchers {
 
   "argument type classifier (aTr)" should "work." in {
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_aTr/", argumentTypeLearner)
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/", argumentTypeLearner)
     val results = argumentTypeLearner.test(exclude = "candidate")
     results.perLabel
       .filter(!_.f1.isNaN)
@@ -29,7 +29,7 @@ class ModelsTest extends FlatSpec with Matchers {
   }
 
   "predicate identifier (dTr)" should "perform higher than 0.98." in {
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_dTr/", predicateClassifier)
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_dTr/", predicateClassifier)
     val results = predicateClassifier.test()
     results.perLabel.foreach {
       result =>
@@ -39,7 +39,7 @@ class ModelsTest extends FlatSpec with Matchers {
 
   "L+I argument type classifier (aTr)" should "work." in {
     //TODO solve the test problem with Gurobi licencing vs. OJalgoHook inefficiency
-    //    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_aTr/", argumentTypeLearner)
+    //    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/", argumentTypeLearner)
     //    val scores = argTypeConstraintClassifier.test(exclude = "candidate")
     //    scores.foreach {
     //      case (label, score) => {
@@ -54,7 +54,7 @@ class ModelsTest extends FlatSpec with Matchers {
   }
 
   "argument identifier (bTr)" should "perform higher than 0.95." in {
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_bTr/", argumentXuIdentifierGivenApredicate)
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_bTr/", argumentXuIdentifierGivenApredicate)
     val results = argumentXuIdentifierGivenApredicate.test()
     results.perLabel.foreach {
       result =>
@@ -63,7 +63,7 @@ class ModelsTest extends FlatSpec with Matchers {
   }
 
   "argument identifier (cTr) trained with XuPalmer" should "perform higher than 0.9." in {
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_cTr/", argumentTypeLearner)
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_cTr/", argumentTypeLearner)
     val results = argumentTypeLearner.test()
     results.perLabel.foreach {
       result =>
@@ -77,7 +77,7 @@ class ModelsTest extends FlatSpec with Matchers {
   }
 
   "argument identifier (fTr) trained with XuPalmer and candidate predicates" should "work." in {
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_fTr/", argumentTypeLearner)
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_fTr/", argumentTypeLearner)
     val results = argumentTypeLearner.test(exclude = "candidate")
     results.perLabel.foreach {
       result =>

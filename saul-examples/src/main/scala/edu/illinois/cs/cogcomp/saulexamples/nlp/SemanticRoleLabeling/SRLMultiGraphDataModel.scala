@@ -13,7 +13,6 @@ import edu.illinois.cs.cogcomp.edison.features.factory._
 import edu.illinois.cs.cogcomp.nlp.corpusreaders.AbstractSRLAnnotationReader
 import edu.illinois.cs.cogcomp.saul.datamodel.DataModel
 import edu.illinois.cs.cogcomp.saul.datamodel.property.PairwiseConjunction
-import edu.illinois.cs.cogcomp.saulexamples.data.SRLFrameManager
 import edu.illinois.cs.cogcomp.saulexamples.nlp.CommonSensors
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLSensors._
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers._
@@ -21,7 +20,11 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstrai
 
 import scala.collection.JavaConversions._
 
-class SRLMultiGraphDataModel(parseViewName: String = null, frameManager: SRLFrameManager = null) extends DataModel {
+object SRLMultiGraphDataModel extends DataModel {
+  val parseViewName = SRLscalaConfigurator.SRL_PARSE_VIEW
+  val frameManager = SRLscalaConfigurator.SRL_FRAME_MANAGER
+
+  // Nodes
 
   val predicates = node[Constituent]((x: Constituent) => x.getTextAnnotation.getCorpusId + ":" + x.getTextAnnotation.getId + ":" + x.getSpan)
 
@@ -36,11 +39,15 @@ class SRLMultiGraphDataModel(parseViewName: String = null, frameManager: SRLFram
 
   val tokens = node[Constituent]((x: Constituent) => x.getTextAnnotation.getCorpusId + ":" + x.getTextAnnotation.getId + ":" + x.getSpan)
 
+  // Edges
+
   val sentencesToStringTree = edge(sentences, stringTree)
   val sentencesToTokens = edge(sentences, tokens)
   val sentencesToRelations = edge(sentences, relations)
   val relationsToPredicates = edge(relations, predicates)
   val relationsToArguments = edge(relations, arguments)
+
+  // Sensors
 
   sentencesToTokens.addSensor(CommonSensors.textAnnotationToTokens _)
   sentencesToRelations.addSensor(textAnnotationToRelation _)
@@ -48,6 +55,8 @@ class SRLMultiGraphDataModel(parseViewName: String = null, frameManager: SRLFram
   relationsToArguments.addSensor(relToArgument _)
   relationsToPredicates.addSensor(relToPredicate _)
   sentencesToStringTree.addSensor(textAnnotationToStringTree _)
+
+  // Properties
 
   /** This can be applied to both predicates and arguments */
   val address = property(predicates, "add") {

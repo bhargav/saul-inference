@@ -26,7 +26,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
   override def addView(ta: TextAnnotation): Unit = {
     checkPrequisites(ta)
 
-    SRLApps.srlDataModelObject.clearInstances()
+    SRLMultiGraphDataModel.clearInstances()
 
     val finalView = new PredicateArgumentView(getViewName, SRLAnnotator.getClass.getCanonicalName, ta, 1.0)
 
@@ -47,16 +47,16 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     assert(finalView.getConstituents.forall(_.getViewName == getViewName), "Verify correct constituent view names.")
     ta.addView(getViewName, finalView)
 
-    SRLApps.srlDataModelObject.clearInstances()
+    SRLMultiGraphDataModel.clearInstances()
   }
 
   override def initialize(rm: ResourceManager): Unit = {
     // Load models and other things
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_dTr/",
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_dTr/",
       SRLClassifiers.predicateClassifier)
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_bTr/",
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_bTr/",
       SRLClassifiers.argumentXuIdentifierGivenApredicate)
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_aTr/",
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/",
       SRLClassifiers.argumentTypeLearner)
   }
 
@@ -75,14 +75,14 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     * @return Constituents that are not attached to any view yet.
     */
   private def getPredicates(ta: TextAnnotation): Iterable[Constituent] = {
-    SRLApps.srlDataModelObject.clearInstances()
+    SRLMultiGraphDataModel.clearInstances()
 
-    SRLApps.srlDataModelObject.sentences.populate(Seq(ta), train = false, populateEdge = false)
-    SRLApps.srlDataModelObject.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
-    SRLApps.srlDataModelObject.stringTree.populate(Seq(SRLSensors.textAnnotationToStringTree(ta)), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.stringTree.populate(Seq(SRLSensors.textAnnotationToStringTree(ta)), train = false, populateEdge = false)
 
     val predicateCandidates = ta.getView(ViewNames.TOKENS).map(_.cloneForNewView(getViewName))
-    SRLApps.srlDataModelObject.predicates.populate(predicateCandidates, train = false, populateEdge = false)
+    SRLMultiGraphDataModel.predicates.populate(predicateCandidates, train = false, populateEdge = false)
 
     // Figure out the constants in Boolean Property
     // TODO - Constant for Predicate label
@@ -97,29 +97,29 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     * @return Relation between unattached predicate and arguments.
     */
   private def getArguments(ta: TextAnnotation, predicate: Constituent): Iterable[Relation] = {
-    SRLApps.srlDataModelObject.clearInstances()
+    SRLMultiGraphDataModel.clearInstances()
 
     val stringTree = SRLSensors.textAnnotationToStringTree(ta)
 
     // Prevent duplicate clearing of graphs.
-    SRLApps.srlDataModelObject.sentences.populate(Seq(ta), train = false, populateEdge = false)
-    SRLApps.srlDataModelObject.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
-    SRLApps.srlDataModelObject.stringTree.populate(Seq(stringTree), train = false, populateEdge = false)
-    SRLApps.srlDataModelObject.predicates.populate(Seq(predicate), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.stringTree.populate(Seq(stringTree), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.predicates.populate(Seq(predicate), train = false, populateEdge = false)
 
     val candidateRelations = SRLSensors.xuPalmerCandidate(predicate, stringTree)
-    SRLApps.srlDataModelObject.arguments.populate(candidateRelations.map(_.getTarget), train = false, populateEdge = false)
-    SRLApps.srlDataModelObject.relations.populate(candidateRelations, train = false, populateEdge = false)
+    SRLMultiGraphDataModel.arguments.populate(candidateRelations.map(_.getTarget), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.relations.populate(candidateRelations, train = false, populateEdge = false)
 
     val finalRelationList = candidateRelations.filter({ candidate: Relation =>
       SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
     })
 
-    SRLApps.srlDataModelObject.arguments.clear()
-    SRLApps.srlDataModelObject.arguments.populate(finalRelationList.map(_.getTarget), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.arguments.clear()
+    SRLMultiGraphDataModel.arguments.populate(finalRelationList.map(_.getTarget), train = false, populateEdge = false)
 
-    SRLApps.srlDataModelObject.relations.clear()
-    SRLApps.srlDataModelObject.relations.populate(finalRelationList, train = false, populateEdge = false)
+    SRLMultiGraphDataModel.relations.clear()
+    SRLMultiGraphDataModel.relations.populate(finalRelationList, train = false, populateEdge = false)
 
     finalRelationList.flatMap { relation: Relation =>
       val label = SRLClassifiers.argumentTypeLearner(relation)

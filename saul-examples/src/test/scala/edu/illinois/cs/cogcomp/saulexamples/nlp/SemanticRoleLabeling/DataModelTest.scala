@@ -11,14 +11,13 @@ import edu.illinois.cs.cogcomp.core.utilities.DummyTextAnnotationGenerator
 import org.scalatest.{ FlatSpec, Matchers }
 
 class DataModelTest extends FlatSpec with Matchers {
-  val rm = new SRLConfigurator().getDefaultConfig
-  val parseViewName = rm.getString(SRLConfigurator.SRL_PARSE_VIEW)
-  val SRLDataModel = new SRLMultiGraphDataModel(parseViewName)
-  import SRLDataModel._
+  import SRLMultiGraphDataModel._
+
   val viewsToAdd = Array(
     ViewNames.LEMMA, ViewNames.POS, ViewNames.SHALLOW_PARSE,
     ViewNames.PARSE_GOLD, ViewNames.SRL_VERB
   )
+
   val ta = {
     val taTmp = DummyTextAnnotationGenerator.generateAnnotatedTextAnnotation(viewsToAdd, false, 1)
     // included here, in order to make sure population is done before making any queries
