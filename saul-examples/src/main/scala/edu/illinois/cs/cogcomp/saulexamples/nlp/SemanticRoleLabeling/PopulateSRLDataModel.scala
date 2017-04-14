@@ -10,7 +10,7 @@ import java.util.Properties
 
 import edu.illinois.cs.cogcomp.annotation.AnnotatorException
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
-import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{Constituent, TextAnnotation, TreeView}
+import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ Constituent, TextAnnotation, TreeView }
 import edu.illinois.cs.cogcomp.core.datastructures.trees.Tree
 import edu.illinois.cs.cogcomp.curator.CuratorConfigurator._
 import edu.illinois.cs.cogcomp.edison.annotators.ClauseViewGenerator

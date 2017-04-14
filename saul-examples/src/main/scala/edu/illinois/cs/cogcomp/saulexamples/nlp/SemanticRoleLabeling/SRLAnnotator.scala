@@ -6,8 +6,8 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
-import edu.illinois.cs.cogcomp.annotation.{Annotator, AnnotatorConfigurator, AnnotatorException}
-import edu.illinois.cs.cogcomp.core.datastructures.{IntPair, ViewNames}
+import edu.illinois.cs.cogcomp.annotation.{ Annotator, AnnotatorConfigurator, AnnotatorException }
+import edu.illinois.cs.cogcomp.core.datastructures.{ IntPair, ViewNames }
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation._
 import edu.illinois.cs.cogcomp.core.utilities.configuration.ResourceManager
 import edu.illinois.cs.cogcomp.edison.annotators.ClauseViewGenerator
@@ -41,7 +41,8 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
         predicate,
         argumentList.map(_.getTarget).toList,
         argumentList.map(_.getRelationName).toArray,
-        argumentList.map(_.getScore).toArray)
+        argumentList.map(_.getScore).toArray
+      )
     })
 
     assert(finalView.getConstituents.forall(_.getViewName == getViewName), "Verify correct constituent view names.")
@@ -52,12 +53,18 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
 
   override def initialize(rm: ResourceManager): Unit = {
     // Load models and other things
-    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_dTr/",
-      SRLClassifiers.predicateClassifier)
-    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_bTr/",
-      SRLClassifiers.argumentXuIdentifierGivenApredicate)
-    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/",
-      SRLClassifiers.argumentTypeLearner)
+    ClassifierUtils.LoadClassifier(
+      SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_dTr/",
+      SRLClassifiers.predicateClassifier
+    )
+    ClassifierUtils.LoadClassifier(
+      SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_bTr/",
+      SRLClassifiers.argumentXuIdentifierGivenApredicate
+    )
+    ClassifierUtils.LoadClassifier(
+      SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/",
+      SRLClassifiers.argumentTypeLearner
+    )
   }
 
   def checkPrequisites(ta: TextAnnotation): Unit = {
@@ -70,8 +77,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     assert(ta.hasView(ViewNames.CLAUSES_STANFORD))
   }
 
-  /**
-    * @param ta Input Text Annotation instance.
+  /** @param ta Input Text Annotation instance.
     * @return Constituents that are not attached to any view yet.
     */
   private def getPredicates(ta: TextAnnotation): Iterable[Constituent] = {
@@ -91,8 +97,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     })
   }
 
-  /**
-    * @param ta Input Text Annotation instance.
+  /** @param ta Input Text Annotation instance.
     * @param predicate Input Predicate instance.
     * @return Relation between unattached predicate and arguments.
     */
