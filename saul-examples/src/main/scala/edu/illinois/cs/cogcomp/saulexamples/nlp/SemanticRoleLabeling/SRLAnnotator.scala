@@ -170,7 +170,7 @@ object SRLAnnotator {
     val newTargetConstituent = sourceRelation.getTarget.cloneForNewView(targetViewName)
     val newRelation = new Relation(label, sourceRelation.getSource, newTargetConstituent, sourceRelation.getScore)
     sourceRelation.getAttributeKeys.foreach({ key: String =>
-      newRelation.setAttribute(key, sourceRelation.getAttribute(key))
+      newRelation.addAttribute(key, sourceRelation.getAttribute(key))
     })
     newRelation
   }

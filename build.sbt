@@ -3,8 +3,8 @@ import sbtrelease.ReleaseStateTransformations._
 
 scalaVersion in ThisBuild := "2.11.7"
 
-val cogcompNLPVersion = "3.0.71"
-val cogcompPipelineVersion = "0.1.25"
+val cogcompNLPVersion = "3.1.7"
+val lbjavaVersion = "1.2.27"
 val ccgGroupId = "edu.illinois.cs.cogcomp"
 val headerMsg =  """/** This software is released under the University of Illinois/Research and Academic Use License. See
                         |  * the LICENSE file in the root folder for details. Copyright (c) 2016
@@ -61,12 +61,12 @@ lazy val commonSettings = Seq(
   ),
   javaOptions ++= List("-Xmx11g"),
   libraryDependencies ++= Seq(
-    ccgGroupId % "LBJava" % "1.2.25" withSources,
+    ccgGroupId % "LBJava" % lbjavaVersion withSources,
     ccgGroupId % "illinois-core-utilities" % cogcompNLPVersion withSources,
-    "com.gurobi" % "gurobi" % "6.0",
+    "com.gurobi" % "gurobi" % "7.0.1",
     "org.apache.commons" % "commons-math3" % "3.0",
     "org.scalatest" % "scalatest_2.11" % "2.2.4",
-    "ch.qos.logback" % "logback-classic" % "1.1.7"
+    "ch.qos.logback" % "logback-classic" % "1.2.3"
   ),
   fork := true,
   connectInput in run := true,
@@ -95,7 +95,7 @@ lazy val saulExamples = (project in file("saul-examples")).
   settings(
     name := "saul-examples",
     libraryDependencies ++= Seq(
-      ccgGroupId % "illinois-nlp-pipeline" % cogcompPipelineVersion withSources,
+      ccgGroupId % "illinois-nlp-pipeline" % cogcompNLPVersion withSources,
       ccgGroupId % "illinois-curator" % cogcompNLPVersion,
       ccgGroupId % "illinois-edison" % cogcompNLPVersion,
       ccgGroupId % "illinois-corpusreaders" % cogcompNLPVersion,

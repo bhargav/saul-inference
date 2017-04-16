@@ -14,7 +14,7 @@ import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ Constituent,
 import edu.illinois.cs.cogcomp.core.datastructures.trees.Tree
 import edu.illinois.cs.cogcomp.curator.CuratorConfigurator._
 import edu.illinois.cs.cogcomp.edison.annotators.ClauseViewGenerator
-import edu.illinois.cs.cogcomp.nlp.common.PipelineConfigurator._
+import edu.illinois.cs.cogcomp.pipeline.common.PipelineConfigurator._
 import edu.illinois.cs.cogcomp.nlp.utilities.ParseUtils
 import edu.illinois.cs.cogcomp.saul.util.Logging
 import edu.illinois.cs.cogcomp.saulexamples.data.SRLDataReader

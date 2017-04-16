@@ -12,7 +12,7 @@ import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ Constituent,
 import edu.illinois.cs.cogcomp.curator.CuratorFactory
 import edu.illinois.cs.cogcomp.edison.features.factory.WordFeatureExtractorFactory
 import edu.illinois.cs.cogcomp.edison.features.{ FeatureExtractor, FeatureUtilities }
-import edu.illinois.cs.cogcomp.nlp.pipeline.IllinoisPipelineFactory
+import edu.illinois.cs.cogcomp.pipeline.main.PipelineFactory
 import edu.illinois.cs.cogcomp.saul.util.Logging
 import edu.illinois.cs.cogcomp.saulexamples.data.Document
 
@@ -87,9 +87,8 @@ object CommonSensors extends Logging {
   }
 
   def annotateWithPipeline(content: String, id: String): TextAnnotation = {
-    val annotatorService = IllinoisPipelineFactory.buildPipeline()
+    val annotatorService = PipelineFactory.buildPipeline()
     processDocumentWith(annotatorService, "corpus", id, content)
   }
-
 }
 
