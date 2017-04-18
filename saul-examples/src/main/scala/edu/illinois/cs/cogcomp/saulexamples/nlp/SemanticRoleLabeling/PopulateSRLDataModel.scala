@@ -45,9 +45,10 @@ object PopulateSRLDataModel extends Logging {
         TextAnnotationFactory.createCuratorAnnotatorService(nonDefaultProps)
       case false =>
         val nonDefaultProps = new Properties()
-        TextAnnotationFactory.disableSettings(nonDefaultProps, USE_NER_CONLL, USE_NER_ONTONOTES, USE_SRL_VERB, USE_SRL_NOM, USE_STANFORD_DEP)
-        if (parseViewName.equals(ViewNames.PARSE_GOLD))
-          TextAnnotationFactory.disableSettings(nonDefaultProps, USE_POS, USE_STANFORD_PARSE)
+        TextAnnotationFactory.enableSettings(nonDefaultProps, USE_LEMMA, USE_SHALLOW_PARSE)
+        if (!parseViewName.equals(ViewNames.PARSE_GOLD)) {
+          TextAnnotationFactory.enableSettings(nonDefaultProps, USE_POS, USE_STANFORD_PARSE)
+        }
         TextAnnotationFactory.createPipelineAnnotatorService(nonDefaultProps)
     }
 

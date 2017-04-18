@@ -26,7 +26,8 @@ object SpRLDataModelReader extends Logging {
   def read(path: String, version: String): List[SpRLSentence] = {
 
     val settings = new Properties()
-    TextAnnotationFactory.disableSettings(settings, USE_SRL_NOM, USE_NER_ONTONOTES)
+    TextAnnotationFactory.enableSettings(settings, USE_POS, USE_DEP, USE_LEMMA, USE_SHALLOW_PARSE, USE_NER_CONLL,
+      USE_STANFORD_DEP, USE_STANFORD_PARSE, USE_SRL_VERB, USE_SRL_PREP, USE_SRL_COMMA, USE_QUANTIFIER)
     val as = TextAnnotationFactory.createPipelineAnnotatorService(settings)
     val reader = new SpRLDataReader(path, classOf[SpRL2013Document])
     reader.readData()

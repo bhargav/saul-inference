@@ -9,11 +9,15 @@ package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 import java.io.File
 
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
-import edu.illinois.cs.cogcomp.saul.classifier.{ ClassifierUtils, JointTrainSparseNetwork }
+import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{Sentence, TreeView}
+import edu.illinois.cs.cogcomp.saul.classifier.{ClassifierUtils, JointTrainSparseNetwork}
 import edu.illinois.cs.cogcomp.saul.util.Logging
 import edu.illinois.cs.cogcomp.saulexamples.data.SRLFrameManager
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers._
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstrainedClassifiers.argTypeConstraintClassifier
+import edu.illinois.cs.cogcomp.pipeline.server.ServerClientAnnotator
+
+import scala.collection.JavaConverters._
 
 object SRLscalaConfigurator {
 
@@ -70,7 +74,7 @@ object SRLscalaConfigurator {
   lazy val SRL_FRAME_MANAGER: SRLFrameManager = new SRLFrameManager(PROPBANK_HOME)
 }
 
-object SRLApps extends Logging {
+object RunningApps extends App with Logging {
 
   import SRLscalaConfigurator._
 
@@ -104,12 +108,6 @@ object SRLApps extends Logging {
   logger.info("all predicates number after population:" + predicates().size)
   logger.info("all arguments number after population:" + arguments().size)
   logger.info("all tokens number after population:" + tokens().size)
-}
-
-object RunningApps extends App with Logging {
-  import SRLApps._
-  import SRLscalaConfigurator._
-  import SRLMultiGraphDataModel._
 
   // TRAINING
   if (!TEST_MODE) {
