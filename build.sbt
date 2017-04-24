@@ -75,6 +75,7 @@ lazy val commonSettings = Seq(
     "scala" -> (HeaderPattern.cStyleBlockComment, headerMsg),
     "java" -> (HeaderPattern.cStyleBlockComment, headerMsg)
   ),
+  excludeDependencies += "org.slf4j" % "slf4j-log4j12",
   testOptions in Test += Tests.Argument("-oF") // shows the complete stack-trace, if things break in the test
 ) ++ publishSettings
 
