@@ -4,15 +4,15 @@
   * Developed by: The Cognitive Computations Group, University of Illinois at Urbana-Champaign
   * http://cogcomp.cs.illinois.edu/
   */
-package edu.illinois.cs.cogcomp.saul.classifier.infer
+package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
 import edu.illinois.cs.cogcomp.infer.ilp.ILPSolver
+import edu.illinois.cs.cogcomp.saul.classifier.infer._
 import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
 
 import scala.collection._
-import scala.reflect.ClassTag
 
-class InferenceManager {
+private[solver] class ILPInferenceManager {
   // a small number used in creation of exclusive inequalities
   private val epsilon = 0.01
 
@@ -374,7 +374,7 @@ class InferenceManager {
   }
 }
 
-object InferenceManager {
+object ILPInferenceManager {
   /** Contains cache of problems already solved. The key is the head object, which maps to instances and their
     * predicted values in the output of inference
     */

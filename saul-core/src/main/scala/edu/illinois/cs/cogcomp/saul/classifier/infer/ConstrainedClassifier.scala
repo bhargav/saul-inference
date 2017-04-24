@@ -9,15 +9,14 @@ package edu.illinois.cs.cogcomp.saul.classifier.infer
 import java.util.Date
 
 import edu.illinois.cs.cogcomp.core.io.LineIO
-import edu.illinois.cs.cogcomp.infer.ilp.{ GurobiHook, ILPSolver, OJalgoHook }
 import edu.illinois.cs.cogcomp.lbjava.classify.TestDiscrete
-import edu.illinois.cs.cogcomp.lbjava.infer.BalasHook
 import edu.illinois.cs.cogcomp.saul.classifier._
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver._
 import edu.illinois.cs.cogcomp.saul.datamodel.edge.Edge
 import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
 import edu.illinois.cs.cogcomp.saul.util.Logging
 
-import scala.collection.{ Iterable, Seq, mutable }
+import scala.collection.{ Iterable, Seq }
 import scala.reflect.ClassTag
 
 /** possible solvers to use */
@@ -37,12 +36,9 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   protected def solverType: SolverType = OJAlgo
   protected def useCaching: Boolean = true
 
-  protected sealed trait OptimizationType
-  protected case object Max extends OptimizationType
-  protected case object Min extends OptimizationType
   protected def optimizationType: OptimizationType = Max
 
-  private val inferenceManager = new InferenceManager()
+  private val inferenceSolver = new ILPInferenceSolver[T, HEAD](solverType, optimizationType, onClassifier)
 
   def getClassSimpleNameForClassifier = this.getClass.getSimpleName
 
@@ -106,15 +102,6 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
     }
   }
 
-  /** given a solver type, instantiates a solver, uppon calling it */
-  private def getSolverInstance: ILPSolver = solverType match {
-    case OJAlgo => new OJalgoHook()
-    case Gurobi => new GurobiHook()
-    case Balas => new BalasHook()
-    case _ => throw new Exception("Hook not found! ")
-  }
-
-  /** given an instance */
   def apply(t: T): String = {
     findHead(t) match {
       case Some(head) => build(head, t)
@@ -215,67 +202,13 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
         * contains pure definition of the constraint before any propositionalization.
         */
       val cacheKey = instancesInvolved.map(_.toString).toSeq.sorted.mkString("*") + constraintsOpt
-      val resultOpt = if (useCaching) InferenceManager.cachedResults.get(cacheKey) else None
-      resultOpt match {
-        case Some((cachedSolver, cachedClassifier, cachedEstimatorToSolverLabelMap)) =>
-          getInstanceLabel(t, cachedSolver, onClassifier, cachedEstimatorToSolverLabelMap)
-        case None =>
-          // create a new solver instance
-          val solver = getSolverInstance
-          solver.setMaximize(optimizationType == Max)
+      val candidates = getCandidates(head)
 
-          // populate the instances connected to head
-          val candidates = getCandidates(head)
-          inferenceManager.addVariablesToInferenceProblem(candidates, onClassifier, solver)
-
-          constraintsOpt.foreach { constraints =>
-            val inequalities = inferenceManager.processConstraints(constraints, solver)
-            inequalities.foreach { ineq =>
-              solver.addGreaterThanConstraint(ineq.x, ineq.a, ineq.b)
-            }
-          }
-
-          solver.solve()
-
-          if (!solver.isSolved) {
-            logger.warn("Instance not solved . . . ")
-          }
-
-          if (useCaching) {
-            InferenceManager.cachedResults.put(cacheKey, (solver, onClassifier, inferenceManager.estimatorToSolverLabelMap))
-          }
-
-          getInstanceLabel(t, solver, onClassifier, inferenceManager.estimatorToSolverLabelMap)
-      }
+      inferenceSolver.solve(cacheKey, instance = t, constraintsOpt, candidates)
     } else {
       // if the instance doesn't involve in any constraints, it means that it's a simple non-constrained problem.
       logger.trace("getting the label with the highest score . . . ")
       onClassifier.classifier.scores(t).highScoreValue()
-    }
-  }
-
-  /** given an instance, the result of the inference insidde an [[ILPSolver]], and a hashmap which connects
-    * classifier labels to solver's internal variables, returns a label for a given instance
-    */
-  private def getInstanceLabel(t: T, solver: ILPSolver,
-    classifier: LBJLearnerEquivalent,
-    estimatorToSolverLabelMap: mutable.Map[LBJLearnerEquivalent, mutable.Map[_, Seq[(Int, String)]]]): String = {
-    val estimatorSpecificMap = estimatorToSolverLabelMap(classifier).asInstanceOf[mutable.Map[T, Seq[(Int, String)]]]
-    estimatorSpecificMap.get(t) match {
-      case Some(indexLabelPairs) =>
-        val values = indexLabelPairs.map {
-          case (ind, _) => solver.getIntegerValue(ind)
-        }
-        // exactly one label should be active; if not, [probably] the inference has been infeasible and
-        // it is not usable, in which case we make direct calls to the non-constrained classifier.
-        if (values.sum == 1) {
-          indexLabelPairs.collectFirst {
-            case (ind, label) if solver.getIntegerValue(ind) == 1.0 => label
-          }.get
-        } else {
-          classifier.classifier.scores(t).highScoreValue()
-        }
-      case None => throw new Exception("instance is not cached ... weird! :-/ ")
     }
   }
 
