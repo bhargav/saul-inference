@@ -6,11 +6,11 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer
 
-import cc.factorie.infer.{BP, BPMaxProductRing, BPSummary}
-import cc.factorie.{DenseTensor1, Factor}
-import cc.factorie.model.{DotTemplateWithStatistics1, ItemizedModel, Parameters}
+import cc.factorie.infer.{ BP, BPMaxProductRing, BPSummary }
+import cc.factorie.{ DenseTensor1, Factor }
+import cc.factorie.model.{ DotTemplateWithStatistics1, ItemizedModel, Parameters }
 import cc.factorie.variable._
-import edu.illinois.cs.cogcomp.lbjava.classify.{ScoreSet, TestDiscrete}
+import edu.illinois.cs.cogcomp.lbjava.classify.{ ScoreSet, TestDiscrete }
 import edu.illinois.cs.cogcomp.lbjava.learn.Softmax
 import edu.illinois.cs.cogcomp.saul.classifier.Learnable
 import edu.illinois.cs.cogcomp.saul.datamodel.edge.Edge

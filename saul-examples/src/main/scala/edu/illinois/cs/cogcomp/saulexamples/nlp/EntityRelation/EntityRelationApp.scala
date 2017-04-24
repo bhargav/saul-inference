@@ -69,9 +69,8 @@ object EntityRelationApp extends Logging {
       PersonClassifier, OrganizationClassifier, LocationClassifier,
       WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier
     )
-//    ClassifierUtils.TestClassifiers(PersonClassifier, OrganizationClassifier, LocationClassifier,
-//      WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
-    ClassifierUtils.TestClassifiers(LivesInClassifier)
+    ClassifierUtils.TestClassifiers(PersonClassifier, OrganizationClassifier, LocationClassifier,
+      WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
   }
 
   /** in this scenario the named entity recognizers are trained independently, and given to a relation classifier as
