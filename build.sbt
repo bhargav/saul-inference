@@ -55,7 +55,6 @@ lazy val commonSettings = Seq(
   organization := ccgGroupId,
   name := "saul-project",
   resolvers ++= Seq(
-    Resolver.mavenLocal,
     "CogcompSoftware" at "http://cogcomp.cs.illinois.edu/m2repo/"
   ),
   javaOptions ++= List("-Xmx11g"),
@@ -66,7 +65,7 @@ lazy val commonSettings = Seq(
     "com.gurobi" % "gurobi" % "7.0.1",
     "cc.factorie" %% "factorie" % "1.2",
     "org.apache.commons" % "commons-math3" % "3.6.1",
-    "org.scalatest" % "scalatest_2.11" % "2.2.4",
+    "org.scalatest" %% "scalatest" % "2.2.4",
     "ch.qos.logback" % "logback-classic" % "1.1.7"
   ),
   scalacOptions ++= Seq("-unchecked", "-feature", "-language:postfixOps"),
@@ -119,7 +118,7 @@ lazy val saulWebapp = (project in file("saul-webapp")).
   settings(
     name := "saul-webapp",
     libraryDependencies ++= Seq(
-      "com.typesafe.play" % "play_2.11" % "2.4.3",
+      "com.typesafe.play" %% "play" % "2.4.3",
       "org.webjars" %% "webjars-play" % "2.4.0-1",
       "org.webjars" % "bootstrap" % "3.3.6",
       "org.webjars.bower" % "tether-shepherd" % "1.1.3",
