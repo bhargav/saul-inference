@@ -19,12 +19,6 @@ import edu.illinois.cs.cogcomp.saul.util.Logging
 import scala.collection.{ Iterable, Seq }
 import scala.reflect.ClassTag
 
-/** possible solvers to use */
-sealed trait SolverType
-case object Gurobi extends SolverType
-case object OJAlgo extends SolverType
-case object Balas extends SolverType
-
 abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   implicit
   val tType: ClassTag[T],
@@ -38,7 +32,8 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
 
   protected def optimizationType: OptimizationType = Max
 
-  private val inferenceSolver = new ILPInferenceSolver[T, HEAD](solverType, optimizationType, onClassifier)
+  // This should be lazy so that correct solverType is passed in.
+  private lazy val inferenceSolver = new ILPInferenceSolver[T, HEAD](solverType, optimizationType, onClassifier, useCaching)
 
   def getClassSimpleNameForClassifier = this.getClass.getSimpleName
 
@@ -102,6 +97,7 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
     }
   }
 
+  /** given an instance */
   def apply(t: T): String = {
     findHead(t) match {
       case Some(head) => build(head, t)

@@ -7,7 +7,8 @@
 package edu.illinois.cs.cogcomp.saul.classifier.JoinTrainingTests
 
 import edu.illinois.cs.cogcomp.lbjava.learn.{ LinearThresholdUnit, SparseNetworkLearner }
-import edu.illinois.cs.cogcomp.saul.classifier.infer.{ ConstrainedClassifier, OJAlgo }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.ConstrainedClassifier
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.OJAlgo
 import edu.illinois.cs.cogcomp.saul.classifier.{ ClassifierUtils, JointTrainSparseNetwork, Learnable }
 import edu.illinois.cs.cogcomp.saul.datamodel.DataModel
 import org.scalatest.{ FlatSpec, Matchers }

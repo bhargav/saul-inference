@@ -7,9 +7,10 @@
 package edu.illinois.cs.cogcomp.saulexamples.Badge
 
 import edu.illinois.cs.cogcomp.infer.ilp.OJalgoHook
-import edu.illinois.cs.cogcomp.saul.classifier.infer.{ ConstrainedClassifier, Gurobi }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.ConstrainedClassifier
 import edu.illinois.cs.cogcomp.saul.classifier.infer.Constraint._
-import edu.illinois.cs.cogcomp.saulexamples.Badge.BadgeClassifiers.{ BadgeOppositClassifierMulti, BadgeClassifierMulti, BadgeClassifier, BadgeOppositClassifier }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.Gurobi
+import edu.illinois.cs.cogcomp.saulexamples.Badge.BadgeClassifiers.{ BadgeClassifier, BadgeClassifierMulti, BadgeOppositClassifier, BadgeOppositClassifierMulti }
 
 /** Created by Parisa on 11/1/16.
   */

@@ -66,7 +66,7 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
     case _ => throw new Exception("Hook not found! ")
   }
 
-  /** given an instance, the result of the inference insidde an [[ILPSolver]], and a hashmap which connects
+  /** given an instance, the result of the inference inside an [[ILPSolver]], and a hashmap which connects
     * classifier labels to solver's internal variables, returns a label for a given instance
     */
   private def getInstanceLabel(t: T, solver: ILPSolver,

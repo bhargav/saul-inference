@@ -7,7 +7,8 @@
 package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ Relation, TextAnnotation }
-import edu.illinois.cs.cogcomp.saul.classifier.infer.{ ConstrainedClassifier, Gurobi }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.ConstrainedClassifier
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.Gurobi
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers.{ argumentTypeLearner, argumentXuIdentifierGivenApredicate }
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstraints._
 

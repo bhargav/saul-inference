@@ -11,7 +11,8 @@ import java.io.PrintStream
 import edu.illinois.cs.cogcomp.lbjava.classify.{ FeatureVector, ScoreSet }
 import edu.illinois.cs.cogcomp.lbjava.learn.Learner
 import edu.illinois.cs.cogcomp.saul.classifier.infer.Constraint._
-import edu.illinois.cs.cogcomp.saul.classifier.infer.{ ConstrainedClassifier, Constraint, OJAlgo }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.OJAlgo
+import edu.illinois.cs.cogcomp.saul.classifier.infer.{ ConstrainedClassifier, Constraint }
 import edu.illinois.cs.cogcomp.saul.datamodel.DataModel
 import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
 import org.scalatest.{ FlatSpec, Matchers }
