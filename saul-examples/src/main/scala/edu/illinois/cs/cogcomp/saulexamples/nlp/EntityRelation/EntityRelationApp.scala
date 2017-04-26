@@ -35,12 +35,13 @@ object EntityRelationApp extends Logging {
       case ERExperimentType.LPlusI => runLPlusI()
       case ERExperimentType.JointTraining => runJointTraining()
       case ERExperimentType.InteractiveMode => interactiveWithPretrainedModels()
+      case ERExperimentType.IndependentMulticlassClassifiers => trainIndependentMulticlassClassifiers()
       case ERExperimentType.FactorConstrained => runFactorConstrained()
     }
   }
 
   object ERExperimentType extends Enumeration {
-    val IndependentClassifiers, LPlusI, TestFromModel, JointTraining, PipelineTraining, PipelineTestFromModel, InteractiveMode, FactorConstrained = Value
+    val IndependentClassifiers, LPlusI, TestFromModel, JointTraining, PipelineTraining, PipelineTestFromModel, InteractiveMode, IndependentMulticlassClassifiers, FactorConstrained = Value
   }
 
   /** in this scenario we train and test classifiers independent of each other. In particular, the relation classifier
@@ -174,6 +175,21 @@ object EntityRelationApp extends Logging {
         case _ => return
       }
     }
+  }
+
+  /* Independent Multiclass Classifiers */
+  def trainIndependentMulticlassClassifiers(): Unit = {
+    EntityRelationDataModel.populateWithConll()
+    val iter = 10
+
+    // independent entity and relation classifiers
+    ClassifierUtils.TrainClassifiers(iter, EntityMulticlassClassifier, RelationMulticlassClassifier)
+    EntityMulticlassClassifier.test()
+
+    // The Kill relation is not present in the training set.
+    val filteredTestRelations = pairs.getTestingInstances.filter(_.relType != "Kill")
+    RelationMulticlassClassifier.test(filteredTestRelations)
+    ClassifierUtils.SaveClassifiers(EntityMulticlassClassifier, RelationMulticlassClassifier)
   }
 
   def runFactorConstrained(): Unit = {

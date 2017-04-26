@@ -38,6 +38,12 @@ object EntityRelationClassifiers {
     // The gazetteer properties are temporarily removed: containsInPersonList, containsInCityList
   }
 
+  object EntityMulticlassClassifier extends Learnable(tokens) {
+    def label = entityType
+    override lazy val classifier = new SparseNetworkLearner()
+    override def feature = using(word, posWindowFeature, phrase, containsSubPhraseMent, containsSubPhraseIng, wordLen)
+  }
+
   /** independent relation classifiers */
   object WorksForClassifier extends Learnable(pairs) {
     def label = relationType is "Work_For"
@@ -53,12 +59,20 @@ object EntityRelationClassifiers {
 
   object OrgBasedInClassifier extends Learnable(pairs) {
     override def label = relationType is "OrgBased_In"
+    override def feature = using(relFeature, relPos)
     override lazy val classifier = new SparseNetworkLearner()
   }
 
   object LocatedInClassifier extends Learnable(pairs) {
     override def label = relationType is "Located_In"
+    override def feature = using(relFeature, relPos)
     override lazy val classifier = new SparseNetworkLearner()
+  }
+
+  object RelationMulticlassClassifier extends Learnable(pairs) {
+    def label = relationType
+    override lazy val classifier = new SparseNetworkLearner()
+    override def feature = using(relFeature, relPos)
   }
 
   /** relation pipeline classifiers */
