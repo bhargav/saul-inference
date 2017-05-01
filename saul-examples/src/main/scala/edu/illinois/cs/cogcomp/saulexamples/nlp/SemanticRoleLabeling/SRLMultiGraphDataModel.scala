@@ -51,7 +51,9 @@ object SRLMultiGraphDataModel extends DataModel {
 
   sentencesToTokens.addSensor(CommonSensors.textAnnotationToTokens _)
   sentencesToRelations.addSensor(textAnnotationToRelation _)
-  sentencesToRelations.addSensor(textAnnotationToRelationMatch _)
+
+  // TODO - Verify if we really need this matching sensor. This is very inefficient.
+  //  sentencesToRelations.addSensor(textAnnotationToRelationMatch _)
   relationsToArguments.addSensor(relToArgument _)
   relationsToPredicates.addSensor(relToPredicate _)
   sentencesToStringTree.addSensor(textAnnotationToStringTree _)

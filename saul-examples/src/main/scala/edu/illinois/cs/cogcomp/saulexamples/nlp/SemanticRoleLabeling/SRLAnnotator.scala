@@ -6,7 +6,7 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
-import edu.illinois.cs.cogcomp.annotation.{Annotator, AnnotatorConfigurator, AnnotatorException}
+import edu.illinois.cs.cogcomp.annotation.{ Annotator, AnnotatorConfigurator, AnnotatorException }
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation._
 import edu.illinois.cs.cogcomp.core.utilities.configuration.ResourceManager
@@ -79,7 +79,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
       SRLClassifiers.argumentXuIdentifierGivenApredicate
     )
     ClassifierUtils.LoadClassifier(
-      SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/",
+      SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_cTr/",
       SRLClassifiers.argumentTypeLearner
     )
   }
@@ -147,7 +147,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     SRLMultiGraphDataModel.relations.populate(finalRelationList, train = false, populateEdge = false)
 
     finalRelationList.flatMap { relation: Relation =>
-      val label = SRLClassifiers.argumentTypeLearner(relation)
+      val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
       if (label == "candidate")
         None
       else
@@ -164,9 +164,11 @@ object SRLAnnotator {
     SRLscalaConfigurator.SRL_PARSE_VIEW
   )
 
-  private def cloneRelationWithNewLabelAndArgument(sourceRelation: Relation,
-                                                   label: String,
-                                                   targetViewName: String): Relation = {
+  private def cloneRelationWithNewLabelAndArgument(
+    sourceRelation: Relation,
+    label: String,
+    targetViewName: String
+  ): Relation = {
     val newTargetConstituent = sourceRelation.getTarget.cloneForNewView(targetViewName)
     val newRelation = new Relation(label, sourceRelation.getSource, newTargetConstituent, sourceRelation.getScore)
     sourceRelation.getAttributeKeys.foreach({ key: String =>

@@ -7,10 +7,10 @@
 package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
-import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{PredicateArgumentView, TextAnnotation}
+import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ PredicateArgumentView, TextAnnotation }
 import edu.illinois.cs.cogcomp.core.utilities.DummyTextAnnotationGenerator
 import edu.illinois.cs.cogcomp.nlp.corpusreaders.AbstractSRLAnnotationReader
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{ FlatSpec, Matchers }
 
 class AnnotatorTest extends FlatSpec with Matchers {
   val textAnnotation: TextAnnotation = DummyTextAnnotationGenerator.generateAnnotatedTextAnnotation(
