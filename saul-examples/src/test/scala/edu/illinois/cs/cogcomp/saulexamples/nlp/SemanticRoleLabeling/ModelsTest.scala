@@ -19,7 +19,7 @@ class ModelsTest extends FlatSpec with Matchers {
   )
 
   SRLMultiGraphDataModel.clearInstances()
-  PopulateSRLDataModel(testOnly = true, useGoldPredicate = true, useGoldArgBoundaries = true)
+  PopulateSRLDataModel(testOnly = true, useGoldPredicate = true, useGoldArgBoundaries = true, usePipelineCaching = false)
 
   "argument type classifier (aTr)" should "work." in {
     ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/", argumentTypeLearner)

@@ -8,7 +8,7 @@ package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
 import java.util.Properties
 
-import edu.illinois.cs.cogcomp.annotation.AnnotatorException
+import edu.illinois.cs.cogcomp.annotation.{ AnnotatorException, AnnotatorServiceConfigurator }
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ Constituent, TextAnnotation, TreeView }
 import edu.illinois.cs.cogcomp.core.datastructures.trees.Tree
@@ -23,7 +23,6 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLscalaCon
 import edu.illinois.cs.cogcomp.saulexamples.nlp.TextAnnotationFactory
 
 import scala.collection.JavaConversions._
-
 import SRLMultiGraphDataModel._
 
 /** Created by Parisa on 1/17/16.
@@ -32,7 +31,8 @@ object PopulateSRLDataModel extends Logging {
   def apply[T <: AnyRef](
     testOnly: Boolean = false,
     useGoldPredicate: Boolean = false,
-    useGoldArgBoundaries: Boolean = false
+    useGoldArgBoundaries: Boolean = false,
+    usePipelineCaching: Boolean = true
   ): Unit = {
 
     val useCurator = SRLscalaConfigurator.USE_CURATOR
@@ -48,6 +48,9 @@ object PopulateSRLDataModel extends Logging {
         TextAnnotationFactory.enableSettings(nonDefaultProps, USE_LEMMA, USE_SHALLOW_PARSE)
         if (!parseViewName.equals(ViewNames.PARSE_GOLD)) {
           TextAnnotationFactory.enableSettings(nonDefaultProps, USE_POS, USE_STANFORD_PARSE)
+        }
+        if (!usePipelineCaching) {
+          TextAnnotationFactory.enableSettings(nonDefaultProps, AnnotatorServiceConfigurator.DISABLE_CACHE)
         }
         TextAnnotationFactory.createPipelineAnnotatorService(nonDefaultProps)
     }
