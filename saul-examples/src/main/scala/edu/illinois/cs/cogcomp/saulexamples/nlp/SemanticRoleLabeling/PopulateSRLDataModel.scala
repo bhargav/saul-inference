@@ -77,7 +77,7 @@ object PopulateSRLDataModel extends Logging {
 
           Some(ta)
         } catch {
-          case e: AnnotatorException =>
+          case e: Exception =>
             logger.warn(s"Annotation failed for sentence ${ta.getId}; removing it from the list.")
             None
         }

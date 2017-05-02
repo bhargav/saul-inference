@@ -102,7 +102,7 @@ lazy val saulExamples = (project in file("saul-examples")).
       ccgGroupId % "illinois-pos" % cogcompNLPVersion,
       ccgGroupId % "saul-pos-tagger-models" % "1.4",
       ccgGroupId % "saul-er-models" % "1.8",
-      ccgGroupId % "saul-srl-models" % "1.4" classifier "verb-stanford",
+      ccgGroupId % "saul-srl-models" % "1.4" classifier "verb-gold",
       "org.json" % "json" % "20140107",
       "com.twitter" % "hbc-core" % "2.2.0",
       "org.rogach" %% "scallop" % "2.0.5"

@@ -4,7 +4,7 @@
   * Developed by: The Cognitive Computations Group, University of Illinois at Urbana-Champaign
   * http://cogcomp.cs.illinois.edu/
   */
-package edu.illinois.cs.cogcomp.saulexamples;
+package edu.illinois.cs.cogcomp.saulexamples
 
 import org.scalatest.Tag
 
