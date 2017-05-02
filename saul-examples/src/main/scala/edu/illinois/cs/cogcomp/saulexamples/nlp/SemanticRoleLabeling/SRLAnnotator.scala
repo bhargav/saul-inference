@@ -31,7 +31,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
   }
 
   override def addView(ta: TextAnnotation): Unit = {
-    checkPrequisites(ta)
+    checkPrerequisites(ta)
 
     SRLMultiGraphDataModel.clearInstances()
 
@@ -57,8 +57,8 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
         .headOption
         .orElse(ta.getView(ViewNames.TOKENS).getConstituentsCovering(predicate).headOption)
 
-      // TODO - Fix this with correct Sense identifier
-      predicate.addAttribute(AbstractSRLAnnotationReader.SenseIdentifier, "xx")
+      // TODO - Need to train a Predicate Sense identifier.
+      predicate.addAttribute(AbstractSRLAnnotationReader.SenseIdentifier, "01")
       predicate.addAttribute(AbstractSRLAnnotationReader.LemmaIdentifier, lemmaOrToken.map(_.getLabel).getOrElse(""))
     })
 
@@ -84,7 +84,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     )
   }
 
-  def checkPrequisites(ta: TextAnnotation): Unit = {
+  def checkPrerequisites(ta: TextAnnotation): Unit = {
     val missingRequirements = requiredViewSet.diff(ta.getAvailableViews)
     if (missingRequirements.nonEmpty) {
       throw new AnnotatorException(s"Document ${ta.getId} is missing required views: $missingRequirements")
@@ -103,15 +103,13 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     SRLMultiGraphDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
     SRLMultiGraphDataModel.stringTree.populate(Seq(SRLSensors.textAnnotationToStringTree(ta)), train = false, populateEdge = false)
 
-    // TODO - Shim to select only Verb for now.
+    // Filter only verbs as candidates to the predicate classifier
     val predicateCandidates = ta.getView(ViewNames.POS)
       .getConstituents
       .filter(_.getLabel.startsWith("VB"))
       .map(_.cloneForNewView(getViewName))
     SRLMultiGraphDataModel.predicates.populate(predicateCandidates, train = false, populateEdge = false)
 
-    // TODO - Figure out the constants in Boolean Property
-    // TODO - Constant for Predicate label
     predicateCandidates.filter(SRLClassifiers.predicateClassifier(_) == "true").map({ candidate: Constituent =>
       candidate.cloneForNewViewWithDestinationLabel(getViewName, "Predicate")
     })
@@ -146,13 +144,13 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     SRLMultiGraphDataModel.relations.clear()
     SRLMultiGraphDataModel.relations.populate(finalRelationList, train = false, populateEdge = false)
 
-    finalRelationList.flatMap { relation: Relation =>
+    finalRelationList.flatMap({ relation: Relation =>
       val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
       if (label == "candidate")
         None
       else
         Some(SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, getViewName))
-    }
+    })
   }
 }
 
