@@ -131,18 +131,18 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     SRLMultiGraphDataModel.predicates.populate(Seq(predicate), train = false, populateEdge = false)
 
     val candidateRelations = SRLSensors.xuPalmerCandidate(predicate, stringTree)
-    SRLMultiGraphDataModel.arguments.populate(candidateRelations.map(_.getTarget), train = false, populateEdge = false)
-    SRLMultiGraphDataModel.relations.populate(candidateRelations, train = false, populateEdge = false)
+    SRLMultiGraphDataModel.arguments.populate(candidateRelations.map(_.getTarget), train = false)
+    SRLMultiGraphDataModel.relations.populate(candidateRelations, train = false)
 
     val finalRelationList = candidateRelations.filter({ candidate: Relation =>
       SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
     })
 
     SRLMultiGraphDataModel.arguments.clear()
-    SRLMultiGraphDataModel.arguments.populate(finalRelationList.map(_.getTarget), train = false, populateEdge = false)
+    SRLMultiGraphDataModel.arguments.populate(finalRelationList.map(_.getTarget), train = false)
 
     SRLMultiGraphDataModel.relations.clear()
-    SRLMultiGraphDataModel.relations.populate(finalRelationList, train = false, populateEdge = false)
+    SRLMultiGraphDataModel.relations.populate(finalRelationList, train = false)
 
     finalRelationList.flatMap({ relation: Relation =>
       val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
