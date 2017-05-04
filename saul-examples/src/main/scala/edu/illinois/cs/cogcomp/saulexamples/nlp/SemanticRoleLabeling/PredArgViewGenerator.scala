@@ -18,7 +18,7 @@ import scala.collection.JavaConversions._
   */
 object PredArgViewGenerator {
 
-  import SRLMultiGraphDataModel._
+  import SRLClassifiers.SRLDataModel._
 
   def toPredArgList(labelProp: TypedProperty[Relation, String]): Iterable[PredicateArgumentView] = {
     sentences().map { ta =>

@@ -15,7 +15,7 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstrai
 /** Created by Parisa on 12/27/15.
   */
 object SRLConstrainedClassifiers {
-  import SRLMultiGraphDataModel._
+  import SRLClassifiers.SRLDataModel._
 
   val erSolver = new OJalgoHook
 

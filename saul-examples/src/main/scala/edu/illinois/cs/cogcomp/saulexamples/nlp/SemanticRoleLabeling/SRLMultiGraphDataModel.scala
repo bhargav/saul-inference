@@ -13,6 +13,7 @@ import edu.illinois.cs.cogcomp.edison.features.factory._
 import edu.illinois.cs.cogcomp.nlp.corpusreaders.AbstractSRLAnnotationReader
 import edu.illinois.cs.cogcomp.saul.datamodel.DataModel
 import edu.illinois.cs.cogcomp.saul.datamodel.property.PairwiseConjunction
+import edu.illinois.cs.cogcomp.saulexamples.data.SRLFrameManager
 import edu.illinois.cs.cogcomp.saulexamples.nlp.CommonSensors
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLSensors._
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers._
@@ -20,12 +21,8 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstrai
 
 import scala.collection.JavaConversions._
 
-object SRLMultiGraphDataModel extends DataModel {
-  val parseViewName = SRLscalaConfigurator.SRL_PARSE_VIEW
-  val frameManager = SRLscalaConfigurator.SRL_FRAME_MANAGER
-
+class SRLMultiGraphDataModel(val parseViewName: String = SRLscalaConfigurator.SRL_PARSE_VIEW, val frameManager: SRLFrameManager = SRLscalaConfigurator.SRL_FRAME_MANAGER) extends DataModel {
   // Nodes
-
   val predicates = node[Constituent]((x: Constituent) => x.getTextAnnotation.getCorpusId + ":" + x.getTextAnnotation.getId + ":" + x.getSpan)
 
   val arguments = node[Constituent]((x: Constituent) => x.getTextAnnotation.getCorpusId + ":" + x.getTextAnnotation.getId + ":" + x.getSpan)

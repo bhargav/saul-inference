@@ -18,7 +18,7 @@ class ModelsTest extends FlatSpec with Matchers {
     ViewNames.PARSE_GOLD, ViewNames.SRL_VERB
   )
 
-  SRLMultiGraphDataModel.clearInstances()
+  SRLDataModel.clearInstances()
   PopulateSRLDataModel(testOnly = true, useGoldPredicate = true, useGoldArgBoundaries = true, usePipelineCaching = false)
 
   "argument type classifier (aTr)" should "work." in {
@@ -58,7 +58,7 @@ class ModelsTest extends FlatSpec with Matchers {
   //          case "A2" => (result.f1 >= 0.6) should be(true)
   //          case _ => ""
   //        }
-  //      }
+  //    }
   //  }
 
   "argument identifier (bTr)" should "perform higher than 0.95." in {

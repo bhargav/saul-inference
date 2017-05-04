@@ -23,7 +23,6 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLscalaCon
 import edu.illinois.cs.cogcomp.saulexamples.nlp.TextAnnotationFactory
 
 import scala.collection.JavaConversions._
-import SRLMultiGraphDataModel._
 
 /** Created by Parisa on 1/17/16.
   */
@@ -95,30 +94,34 @@ object PopulateSRLDataModel extends Logging {
     }
 
     def populateDocument(a: TextAnnotation, isTrainingInstance: Boolean): Unit = {
-      if (!useGoldPredicate) {
-        sentences.populate(Seq(a), train = isTrainingInstance)
+      // Data Model graph for a single sentence
+      val gr = new SRLMultiGraphDataModel(parseViewName)
 
-        val predicateTrainCandidates = (sentences(a) ~> sentencesToTokens).collect({
-          case x: Constituent if posTag(x).startsWith("VB") => x.cloneForNewView(ViewNames.SRL_VERB)
+      if (!useGoldPredicate) {
+        gr.sentences.populate(Seq(a), train = isTrainingInstance)
+
+        val predicateTrainCandidates = (gr.sentences(a) ~> gr.sentencesToTokens).collect({
+          case x: Constituent if gr.posTag(x).startsWith("VB") => x.cloneForNewView(ViewNames.SRL_VERB)
         })
 
-        predicates.populate(predicateTrainCandidates, train = isTrainingInstance)
+        gr.predicates.populate(predicateTrainCandidates, train = isTrainingInstance)
       } else {
-        sentences.populate(Seq(a), train = isTrainingInstance)
+        gr.sentences.populate(Seq(a), train = isTrainingInstance)
       }
-      logger.debug("gold relations for this train:" + (sentences(a) ~> sentencesToRelations).size)
+      logger.debug("gold relations for this train:" + (gr.sentences(a) ~> gr.sentencesToRelations).size)
 
       if (!useGoldArgBoundaries) {
-        val XuPalmerCandidateArgsTraining = (sentences(a) ~> sentencesToRelations ~> relationsToPredicates).flatMap({
-          x => xuPalmerCandidate(x, (sentences(x.getTextAnnotation) ~> sentencesToStringTree).head)
+        val XuPalmerCandidateArgsTraining = (gr.sentences(a) ~> gr.sentencesToRelations ~> gr.relationsToPredicates).flatMap({
+          x => xuPalmerCandidate(x, (gr.sentences(x.getTextAnnotation) ~> gr.sentencesToStringTree).head)
         })
 
-        relations.populate(XuPalmerCandidateArgsTraining, train = isTrainingInstance)
+        gr.relations.populate(XuPalmerCandidateArgsTraining, train = isTrainingInstance)
       }
 
-      logger.debug("all relations for this test:" + (sentences(a) ~> sentencesToRelations).size)
+      logger.debug("all relations for this test:" + (gr.sentences(a) ~> gr.sentencesToRelations).size)
 
-      if (sentences().size % 1000 == 0) logger.info("loaded graphs in memory:" + sentences().size)
+      SRLClassifiers.SRLDataModel.addFromModel(gr)
+      if (gr.sentences().size % 1000 == 0) logger.info("loaded graphs in memory:" + gr.sentences().size)
     }
 
     if (!testOnly) {

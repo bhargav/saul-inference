@@ -14,8 +14,9 @@ import edu.illinois.cs.cogcomp.edison.annotators.ClauseViewGenerator
 import edu.illinois.cs.cogcomp.nlp.corpusreaders.AbstractSRLAnnotationReader
 import edu.illinois.cs.cogcomp.saul.classifier.ClassifierUtils
 import edu.illinois.cs.cogcomp.saulexamples.nlp.CommonSensors
+import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers.SRLDataModel
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 class SRLAnnotatorConfigurator extends AnnotatorConfigurator
 
@@ -33,7 +34,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
   override def addView(ta: TextAnnotation): Unit = {
     checkPrerequisites(ta)
 
-    SRLMultiGraphDataModel.clearInstances()
+    SRLDataModel.clearInstances()
 
     val finalView = new PredicateArgumentView(getViewName, SRLAnnotator.getClass.getCanonicalName, ta, 1.0)
 
@@ -46,7 +47,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
       val argumentList = getArguments(ta, predicate)
       finalView.addPredicateArguments(
         predicate,
-        argumentList.map(_.getTarget).toList,
+        argumentList.map(_.getTarget).toList.asJava,
         argumentList.map(_.getRelationName).toArray,
         argumentList.map(_.getScore).toArray
       )
@@ -54,18 +55,19 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
       // Add additional attributes
       val lemmaOrToken = ta.getView(ViewNames.LEMMA)
         .getConstituentsCovering(predicate)
+        .asScala
         .headOption
-        .orElse(ta.getView(ViewNames.TOKENS).getConstituentsCovering(predicate).headOption)
+        .orElse(ta.getView(ViewNames.TOKENS).getConstituentsCovering(predicate).asScala.headOption)
 
       // TODO - Need to train a Predicate Sense identifier.
       predicate.addAttribute(AbstractSRLAnnotationReader.SenseIdentifier, "01")
       predicate.addAttribute(AbstractSRLAnnotationReader.LemmaIdentifier, lemmaOrToken.map(_.getLabel).getOrElse(""))
     })
 
-    assert(finalView.getConstituents.forall(_.getViewName == getViewName), "Verify correct constituent view names.")
+    assert(finalView.getConstituents.asScala.forall(_.getViewName == getViewName), "Verify correct constituent view names.")
     ta.addView(getViewName, finalView)
 
-    SRLMultiGraphDataModel.clearInstances()
+    SRLDataModel.clearInstances()
   }
 
   override def initialize(rm: ResourceManager): Unit = {
@@ -85,7 +87,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
   }
 
   def checkPrerequisites(ta: TextAnnotation): Unit = {
-    val missingRequirements = requiredViewSet.diff(ta.getAvailableViews)
+    val missingRequirements = requiredViewSet.diff(ta.getAvailableViews.asScala)
     if (missingRequirements.nonEmpty) {
       throw new AnnotatorException(s"Document ${ta.getId} is missing required views: $missingRequirements")
     }
@@ -97,18 +99,19 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     * @return Constituents that are not attached to any view yet.
     */
   private def getPredicates(ta: TextAnnotation): Iterable[Constituent] = {
-    SRLMultiGraphDataModel.clearInstances()
+    SRLDataModel.clearInstances()
 
-    SRLMultiGraphDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
-    SRLMultiGraphDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
-    SRLMultiGraphDataModel.stringTree.populate(Seq(SRLSensors.textAnnotationToStringTree(ta)), train = false, populateEdge = false)
+    SRLDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
+    SRLDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
+    SRLDataModel.stringTree.populate(Seq(SRLSensors.textAnnotationToStringTree(ta)), train = false, populateEdge = false)
 
     // Filter only verbs as candidates to the predicate classifier
     val predicateCandidates = ta.getView(ViewNames.POS)
       .getConstituents
+      .asScala
       .filter(_.getLabel.startsWith("VB"))
       .map(_.cloneForNewView(getViewName))
-    SRLMultiGraphDataModel.predicates.populate(predicateCandidates, train = false, populateEdge = false)
+    SRLDataModel.predicates.populate(predicateCandidates, train = false, populateEdge = false)
 
     predicateCandidates.filter(SRLClassifiers.predicateClassifier(_) == "true").map({ candidate: Constituent =>
       candidate.cloneForNewViewWithDestinationLabel(getViewName, "Predicate")
@@ -120,29 +123,29 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     * @return Relation between unattached predicate and arguments.
     */
   private def getArguments(ta: TextAnnotation, predicate: Constituent): Iterable[Relation] = {
-    SRLMultiGraphDataModel.clearInstances()
+    SRLDataModel.clearInstances()
 
     val stringTree = SRLSensors.textAnnotationToStringTree(ta)
 
     // Prevent duplicate clearing of graphs.
-    SRLMultiGraphDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
-    SRLMultiGraphDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
-    SRLMultiGraphDataModel.stringTree.populate(Seq(stringTree), train = false, populateEdge = false)
-    SRLMultiGraphDataModel.predicates.populate(Seq(predicate), train = false, populateEdge = false)
+    SRLDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
+    SRLDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
+    SRLDataModel.stringTree.populate(Seq(stringTree), train = false, populateEdge = false)
+    SRLDataModel.predicates.populate(Seq(predicate), train = false, populateEdge = false)
 
     val candidateRelations = SRLSensors.xuPalmerCandidate(predicate, stringTree)
-    SRLMultiGraphDataModel.arguments.populate(candidateRelations.map(_.getTarget), train = false)
-    SRLMultiGraphDataModel.relations.populate(candidateRelations, train = false)
+    SRLDataModel.arguments.populate(candidateRelations.map(_.getTarget), train = false)
+    SRLDataModel.relations.populate(candidateRelations, train = false)
 
     val finalRelationList = candidateRelations.filter({ candidate: Relation =>
       SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
     })
 
-    SRLMultiGraphDataModel.arguments.clear()
-    SRLMultiGraphDataModel.arguments.populate(finalRelationList.map(_.getTarget), train = false)
+    SRLDataModel.arguments.clear()
+    SRLDataModel.arguments.populate(finalRelationList.map(_.getTarget), train = false)
 
-    SRLMultiGraphDataModel.relations.clear()
-    SRLMultiGraphDataModel.relations.populate(finalRelationList, train = false)
+    SRLDataModel.relations.clear()
+    SRLDataModel.relations.populate(finalRelationList, train = false)
 
     finalRelationList.flatMap({ relation: Relation =>
       val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
@@ -169,7 +172,7 @@ object SRLAnnotator {
   ): Relation = {
     val newTargetConstituent = sourceRelation.getTarget.cloneForNewView(targetViewName)
     val newRelation = new Relation(label, sourceRelation.getSource, newTargetConstituent, sourceRelation.getScore)
-    sourceRelation.getAttributeKeys.foreach({ key: String =>
+    sourceRelation.getAttributeKeys.asScala.foreach({ key: String =>
       newRelation.addAttribute(key, sourceRelation.getAttribute(key))
     })
     newRelation

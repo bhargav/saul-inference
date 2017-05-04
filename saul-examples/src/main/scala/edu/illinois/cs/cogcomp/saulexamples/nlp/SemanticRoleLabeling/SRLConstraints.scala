@@ -16,7 +16,7 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifi
 
 import scala.collection.JavaConversions._
 
-import SRLMultiGraphDataModel._
+import SRLClassifiers.SRLDataModel._
 
 /** Created by Parisa on 12/23/15.
   */

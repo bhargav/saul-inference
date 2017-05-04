@@ -101,7 +101,7 @@ object RunningApps extends App with Logging {
   // Here, the data is loaded into the graph
   PopulateSRLDataModel(testOnly = TEST_MODE, SRL_GOLD_PREDICATES, SRL_GOLD_ARG_BOUNDARIES)
 
-  import SRLMultiGraphDataModel._
+  import SRLDataModel._
 
   logger.info("all relations number after population:" + relations().size)
   logger.info("all sentences number after population:" + sentences().size)
