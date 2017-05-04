@@ -10,6 +10,7 @@ import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ PredicateArgumentView, TextAnnotation }
 import edu.illinois.cs.cogcomp.core.utilities.DummyTextAnnotationGenerator
 import edu.illinois.cs.cogcomp.nlp.corpusreaders.AbstractSRLAnnotationReader
+import edu.illinois.cs.cogcomp.saulexamples.HighMemoryTest
 import org.scalatest.{ FlatSpec, Matchers }
 
 class AnnotatorTest extends FlatSpec with Matchers {
@@ -19,7 +20,7 @@ class AnnotatorTest extends FlatSpec with Matchers {
     1
   )
 
-  "SRLAnnotator" should "work" in {
+  "SRLAnnotator" should "work" taggedAs (HighMemoryTest) in {
     val annotator = new SRLAnnotator(ViewNames.SRL_VERB)
     annotator.addView(textAnnotation)
 
