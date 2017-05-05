@@ -98,19 +98,18 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   }
 
   /** given an instance */
-  def apply(t: T): String = {
-    findHead(t) match {
-      case Some(head) => build(head, t)
-      case None => onClassifier.classifier.discreteValue(t)
+  def apply(instance: T): String = {
+    val headInstance = findHead(instance)
+
+    if (headInstance.isEmpty) {
+      onClassifier.classifier.discreteValue(instance)
+    } else {
+      build(headInstance.get, instance)
     }
   }
 
-  private def getInstancesInvolvedInProblem(constraintsOpt: Option[Constraint[_]]): Option[Set[_]] = {
-    constraintsOpt.map { constraint => getInstancesInvolved(constraint) }
-  }
-
-  private def getClassifiersInvolvedInProblem(constraintsOpt: Option[Constraint[_]]): Option[Set[LBJLearnerEquivalent]] = {
-    constraintsOpt.map { constraint => getClassifiersInvolved(constraint) }
+  private def getClassifierAndInstancesInvolvedInProblem(constraintsOpt: Option[Constraint[_]]): Option[Set[(LBJLearnerEquivalent, _)]] = {
+    constraintsOpt.map { constraint => getClassifierAndInstancesInvolved(constraint) }
   }
 
   /** given a head instance, produces a constraint based off of it */
@@ -122,89 +121,90 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
     }
   }
 
-  /** find all the instances used in the definiton of the constraint. This is used in caching the results of inference  */
-  private def getInstancesInvolved(constraint: Constraint[_]): Set[_] = {
+  private def getClassifierAndInstancesInvolved(constraint: Constraint[_]): Set[(LBJLearnerEquivalent, _)] = {
     constraint match {
       case c: PropositionalEqualityConstraint[_] =>
-        Set(c.instanceOpt.get)
+        Set((c.estimator, c.instanceOpt.get))
       case c: PairConjunction[_, _] =>
-        getInstancesInvolved(c.c1) ++ getInstancesInvolved(c.c2)
+        getClassifierAndInstancesInvolved(c.c1) ++ getClassifierAndInstancesInvolved(c.c2)
       case c: PairDisjunction[_, _] =>
-        getInstancesInvolved(c.c1) ++ getInstancesInvolved(c.c2)
+        getClassifierAndInstancesInvolved(c.c1) ++ getClassifierAndInstancesInvolved(c.c2)
       case c: Negation[_] =>
-        getInstancesInvolved(c.p)
+        getClassifierAndInstancesInvolved(c.p)
       case c: ConstraintCollections[_, _] =>
-        c.constraints.foldRight(Set[Any]()) {
+        c.constraints.foldRight(Set[(LBJLearnerEquivalent, Any)]()) {
           case (singleConstraint, ins) =>
-            ins union getInstancesInvolved(singleConstraint).asInstanceOf[Set[Any]]
+            ins union getClassifierAndInstancesInvolved(singleConstraint)
         }
       case c: EstimatorPairEqualityConstraint[_] =>
-        Set(c.instance)
+        if (c.estimator2Opt.nonEmpty) {
+          Set((c.estimator1, c.instance), (c.estimator2Opt.get, c.instance))
+        } else {
+          Set((c.estimator1, c.instance))
+        }
       case c: InstancePairEqualityConstraint[_] =>
-        Set(c.instance1, c.instance2Opt.get)
+        if (c.instance2Opt.nonEmpty) {
+          Set((c.estimator, c.instance1), (c.estimator, c.instance2Opt.get))
+        } else {
+          Set((c.estimator, c.instance1))
+        }
       case _ =>
         throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
   }
 
-  /** find all the classifiers involved in the definition of the constraint. This is used for caching of inference */
-  private def getClassifiersInvolved(constraint: Constraint[_]): Set[LBJLearnerEquivalent] = {
-    constraint match {
-      case c: PropositionalEqualityConstraint[_] =>
-        Set(c.estimator)
-      case c: PairConjunction[_, _] =>
-        getClassifiersInvolved(c.c1) ++ getClassifiersInvolved(c.c2)
-      case c: PairDisjunction[_, _] =>
-        getClassifiersInvolved(c.c1) ++ getClassifiersInvolved(c.c2)
-      case c: Negation[_] =>
-        getClassifiersInvolved(c.p)
-      case c: ConstraintCollections[_, _] =>
-        c.constraints.foldRight(Set[LBJLearnerEquivalent]()) {
-          case (singleConstraint, ins) =>
-            ins union getClassifiersInvolved(singleConstraint)
-        }
-      case c: EstimatorPairEqualityConstraint[_] =>
-        Set(c.estimator1, c.estimator2Opt.get)
-      case c: InstancePairEqualityConstraint[_] =>
-        Set(c.estimator)
-      case _ =>
-        throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
-    }
-  }
-
-  private def build(head: HEAD, t: T)(implicit d: DummyImplicit): String = {
+  /** Builds the Constraint Satisfaction Problem and returns the assignment for the instance node.
+    *
+    * @param head
+    * @param instance
+    * @return
+    */
+  private def build(head: HEAD, instance: T): String = {
     val constraintsOpt = instantiateConstraintGivenInstance(head)
-    val instancesInvolved = getInstancesInvolvedInProblem(constraintsOpt)
-    val classifiersInvolved = getClassifiersInvolvedInProblem(constraintsOpt)
-    if (constraintsOpt.isDefined && instancesInvolved.get.isEmpty) {
+    val classifiersAndInstancesInvolved = getClassifierAndInstancesInvolvedInProblem(constraintsOpt)
+
+    if (constraintsOpt.isDefined && classifiersAndInstancesInvolved.get.isEmpty) {
       logger.warn("there are no instances associated with the constraints. It might be because you have defined " +
         "the constraints with 'val' modifier, instead of 'def'.")
     }
-    val instanceIsInvolvedInConstraint = instancesInvolved.exists { set =>
-      set.exists {
-        case x: T => x == t
-        case _ => false
-      }
-    }
-    val classifierIsInvolvedInProblem = classifiersInvolved.exists { classifierSet =>
-      classifierSet.exists {
-        case c: LBJLearnerEquivalent => onClassifier == c
-        case _ => false
-      }
-    }
-    if (instanceIsInvolvedInConstraint & classifierIsInvolvedInProblem) {
-      /** The following cache-key is very important, as it defines what to and when to cache the results of the inference.
-        * The first term encodes the instances involved in the constraint, after propositionalization, and the second term
-        * contains pure definition of the constraint before any propositionalization.
-        */
-      val cacheKey = instancesInvolved.map(_.toString).toSeq.sorted.mkString("*") + constraintsOpt
-      val candidates = getCandidates(head)
 
-      inferenceSolver.solve(cacheKey, instance = t, constraintsOpt, candidates)
+    val classifierAndInstanceInvolved = classifiersAndInstancesInvolved.exists({ set =>
+      set.exists({
+        case (c: LBJLearnerEquivalent, x: T) => (onClassifier == c) && (x == instance)
+        case _ => false
+      })
+    })
+
+    if (classifierAndInstanceInvolved) {
+      val localAssignments = classifiersAndInstancesInvolved.map({ set =>
+        set.groupBy(_._1).map({
+          case (classifier: LBJLearnerEquivalent, classifierInstanceSet: Set[(LBJLearnerEquivalent, Any)]) =>
+            val assignment = Assignment(classifier)
+            classifierInstanceSet.map(_._2).foreach({ instance: Any =>
+              assignment += ((instance, classifier.classifier.scores(instance)))
+            })
+            assignment
+        })
+      })
+
+      val finalAssignments = inferenceSolver.solve(
+        constraintsOpt = constraintsOpt,
+        priorAssignment = localAssignments.get.toSeq
+      )
+
+      val finalInstanceAssignment = finalAssignments.find(_.learner == onClassifier)
+        .flatMap(_.get(instance))
+        .map(_.highScoreValue())
+        .getOrElse({
+          logger.trace("Instance or Classifier not found by the inference solver!")
+          onClassifier.classifier.scores(instance).highScoreValue()
+        })
+
+      finalInstanceAssignment
     } else {
       // if the instance doesn't involve in any constraints, it means that it's a simple non-constrained problem.
       logger.trace("getting the label with the highest score . . . ")
-      onClassifier.classifier.scores(t).highScoreValue()
+      onClassifier.classifier.scores(instance).highScoreValue()
     }
   }
 

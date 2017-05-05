@@ -6,7 +6,7 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
-import edu.illinois.cs.cogcomp.saul.classifier.infer.Constraint
+import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 
 import scala.collection.Seq
 
@@ -21,5 +21,5 @@ case object Max extends OptimizationType
 case object Min extends OptimizationType
 
 trait InferenceSolver[T <: AnyRef, HEAD <: AnyRef] {
-  def solve(cacheKey: String, instance: T, constraintsOpt: Option[Constraint[_]], candidates: Seq[T]): String
+  def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment]
 }

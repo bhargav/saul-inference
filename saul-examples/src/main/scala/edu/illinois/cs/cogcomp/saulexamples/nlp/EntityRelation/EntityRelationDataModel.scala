@@ -28,6 +28,7 @@ object EntityRelationDataModel extends DataModel {
   sentencesToPairs.addSensor(sentenceToRelation_GeneratingSensor _)
   pairTo1stArg.addSensor(relationToFirstArg_MatchingSensor _)
   pairTo2ndArg.addSensor(relationToSecondArg_MatchingSensor _)
+  tokenToPair.addSensor(tokenToRelation_MatchingSensor _)
 
   /** Properties */
   val pos = property(tokens) {

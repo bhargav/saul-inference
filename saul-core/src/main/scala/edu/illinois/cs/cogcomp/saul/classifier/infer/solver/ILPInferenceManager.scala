@@ -353,6 +353,10 @@ private[solver] class ILPInferenceManager {
     }
   }
 
+  def addVariablesToInferenceProblem(assignment: Assignment, solver: ILPSolver): Unit = {
+    addVariablesToInferenceProblem(assignment.keys.toSeq, assignment.learner, solver)
+  }
+
   def addVariablesToInferenceProblem[V](instances: Seq[V], estimator: LBJLearnerEquivalent, solver: ILPSolver): Unit = {
     createEstimatorSpecificCache(estimator)
 

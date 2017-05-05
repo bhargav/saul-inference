@@ -7,6 +7,7 @@
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
 import edu.illinois.cs.cogcomp.infer.ilp.{ GurobiHook, ILPSolver, OJalgoHook }
+import edu.illinois.cs.cogcomp.lbjava.classify.ScoreSet
 import edu.illinois.cs.cogcomp.lbjava.infer.BalasHook
 import edu.illinois.cs.cogcomp.saul.classifier.infer._
 import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
@@ -24,18 +25,28 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
 
   private val inferenceManager = new ILPInferenceManager()
 
-  def solve(cacheKey: String, instance: T, constraintsOpt: Option[Constraint[_]], candidates: Seq[T]): String = {
+  def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
+    val instances = getInstancesInvolvedInProblem(constraintsOpt)
+
+    /** The following cache-key is very important, as it defines what to and when to cache the results of the inference.
+      * The first term encodes the instances involved in the constraint, after propositionalization, and the second term
+      * contains pure definition of the constraint before any propositionalization.
+      */
+    val cacheKey = instances.map(_.toString).toSeq.sorted.mkString("*") + constraintsOpt
+
     val resultOpt = if (useCaching) ILPInferenceManager.cachedResults.get(cacheKey) else None
     resultOpt match {
       case Some((cachedSolver, cachedClassifier, cachedEstimatorToSolverLabelMap)) =>
-        getInstanceLabel(instance, cachedSolver, onClassifier, cachedEstimatorToSolverLabelMap)
+        getInstanceAssignment(priorAssignment, cachedSolver, cachedEstimatorToSolverLabelMap)
       case None =>
+        logger.trace("Solving a new inference problem")
+
         // create a new solver instance
         val solver = getSolverInstance
         solver.setMaximize(optimizationType == Max)
 
         // populate the instances connected to head
-        inferenceManager.addVariablesToInferenceProblem(candidates, onClassifier, solver)
+        priorAssignment.foreach(inferenceManager.addVariablesToInferenceProblem(_, solver))
 
         constraintsOpt.foreach { constraints =>
           val inequalities = inferenceManager.processConstraints(constraints, solver)
@@ -54,7 +65,7 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
           ILPInferenceManager.cachedResults.put(cacheKey, (solver, onClassifier, inferenceManager.estimatorToSolverLabelMap))
         }
 
-        getInstanceLabel(instance, solver, onClassifier, inferenceManager.estimatorToSolverLabelMap)
+        getInstanceAssignment(priorAssignment, solver, inferenceManager.estimatorToSolverLabelMap)
     }
   }
 
@@ -88,6 +99,70 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
           classifier.classifier.scores(t).highScoreValue()
         }
       case None => throw new Exception("instance is not cached ... weird! :-/ ")
+    }
+  }
+
+  private def getInstanceAssignment(
+    priorAssignments: Seq[Assignment],
+    solver: ILPSolver,
+    estimatorToSolverLabelMap: mutable.Map[LBJLearnerEquivalent, mutable.Map[_, Seq[(Int, String)]]]
+  ): Seq[Assignment] = {
+    priorAssignments.foreach({ assignment: Assignment =>
+      val estimatorSpecificMap = estimatorToSolverLabelMap(assignment.learner).asInstanceOf[mutable.Map[Any, Seq[(Int, String)]]]
+      assignment.foreach({
+        case (instance: Any, scores: ScoreSet) =>
+          val scoresArray = scores.toArray
+          estimatorSpecificMap.get(instance) match {
+            case Some(indexLabelPairs) =>
+              val values = indexLabelPairs.map {
+                case (ind, _) => solver.getIntegerValue(ind)
+              }
+              // exactly one label should be active; if not, [probably] the inference has been infeasible and
+              // it is not usable, in which case we make direct calls to the non-constrained classifier.
+              if (values.sum == 1) {
+                val instanceLabel = indexLabelPairs.collectFirst {
+                  case (ind, label) if solver.getIntegerValue(ind) == 1.0 => label
+                }.get
+                scoresArray.foreach({ score =>
+                  score.score = if (score.value == instanceLabel) 1.0 else 0.0
+                })
+              }
+
+            case None => throw new Exception("instance is not cached ... weird! :-/ ")
+          }
+      })
+    })
+    priorAssignments
+  }
+
+  private def getInstancesInvolvedInProblem(constraintsOpt: Option[Constraint[_]]): Option[Set[_]] = {
+    constraintsOpt.map { constraint => getInstancesInvolved(constraint) }
+  }
+
+  /** find all the instances used in the definition of the constraint.
+    * This is used in caching the results of inference
+    */
+  private def getInstancesInvolved(constraint: Constraint[_]): Set[_] = {
+    constraint match {
+      case c: PropositionalEqualityConstraint[_] =>
+        Set(c.instanceOpt.get)
+      case c: PairConjunction[_, _] =>
+        getInstancesInvolved(c.c1) ++ getInstancesInvolved(c.c2)
+      case c: PairDisjunction[_, _] =>
+        getInstancesInvolved(c.c1) ++ getInstancesInvolved(c.c2)
+      case c: Negation[_] =>
+        getInstancesInvolved(c.p)
+      case c: ConstraintCollections[_, _] =>
+        c.constraints.foldRight(Set[Any]()) {
+          case (singleConstraint, ins) =>
+            ins union getInstancesInvolved(singleConstraint).asInstanceOf[Set[Any]]
+        }
+      case c: EstimatorPairEqualityConstraint[_] =>
+        Set(c.instance)
+      case c: InstancePairEqualityConstraint[_] =>
+        Set(c.instance1, c.instance2Opt.get)
+      case _ =>
+        throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
   }
 }
