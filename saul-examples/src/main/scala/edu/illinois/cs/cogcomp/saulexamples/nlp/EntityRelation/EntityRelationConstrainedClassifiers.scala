@@ -13,22 +13,25 @@ import edu.illinois.cs.cogcomp.saulexamples.EntityMentionRelation.datastruct.{ C
 object EntityRelationConstrainedClassifiers {
   object OrgConstrainedClassifier extends ConstrainedClassifier[ConllRawToken, ConllRelation] {
     override lazy val onClassifier = EntityRelationClassifiers.OrganizationClassifier
-    override def pathToHead = Some(EntityRelationDataModel.tokenToPair)
+    override def pathToHead = Some(-EntityRelationDataModel.pairTo2ndArg)
     override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
+    override def filter(t: ConllRawToken, h: ConllRelation): Boolean = t.wordId == h.wordId2
     override def solverType = OJAlgo
   }
 
   object PerConstrainedClassifier extends ConstrainedClassifier[ConllRawToken, ConllRelation] {
     override lazy val onClassifier = EntityRelationClassifiers.PersonClassifier
-    override def pathToHead = Some(EntityRelationDataModel.tokenToPair)
+    override def pathToHead = Some(-EntityRelationDataModel.pairTo1stArg)
     override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
+    override def filter(t: ConllRawToken, h: ConllRelation): Boolean = t.wordId == h.wordId1
     override def solverType = OJAlgo
   }
 
   object LocConstrainedClassifier extends ConstrainedClassifier[ConllRawToken, ConllRelation] {
     override lazy val onClassifier = EntityRelationClassifiers.LocationClassifier
-    override def pathToHead = Some(EntityRelationDataModel.tokenToPair)
+    override def pathToHead = Some(-EntityRelationDataModel.pairTo2ndArg)
     override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
+    override def filter(t: ConllRawToken, h: ConllRelation): Boolean = t.wordId == h.wordId2
     override def solverType = OJAlgo
   }
 

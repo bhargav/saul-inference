@@ -59,13 +59,11 @@ object EntityRelationClassifiers {
 
   object OrgBasedInClassifier extends Learnable(pairs) {
     override def label = relationType is "OrgBased_In"
-    override def feature = using(relFeature, relPos)
     override lazy val classifier = new SparseNetworkLearner()
   }
 
   object LocatedInClassifier extends Learnable(pairs) {
     override def label = relationType is "Located_In"
-    override def feature = using(relFeature, relPos)
     override lazy val classifier = new SparseNetworkLearner()
   }
 
