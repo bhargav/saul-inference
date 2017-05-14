@@ -339,6 +339,11 @@ private[solver] class ILPInferenceManager {
           ILPInequalityGEQ(newAuxillaryVariables.toArray.map(_ => 1.0), newAuxillaryVariables.toArray, c.k),
           ILPInequalityGEQ(newAuxillaryVariables.toArray.map(_ => -1.0), newAuxillaryVariables.toArray, -c.k)
         )
+      case c: Implication[_, _] =>
+        val leftConstraint = processConstraints(c.p.negate, solver)
+        val rightConstraint = processConstraints(c.q, solver)
+
+        leftConstraint union rightConstraint
       case c: ForAll[V, _] =>
         c.constraints.flatMap { processConstraints(_, solver) }
       case _ =>

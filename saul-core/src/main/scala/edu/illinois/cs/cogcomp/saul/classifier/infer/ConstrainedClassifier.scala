@@ -129,6 +129,8 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
         getClassifierAndInstancesInvolved(c.c1) ++ getClassifierAndInstancesInvolved(c.c2)
       case c: PairDisjunction[_, _] =>
         getClassifierAndInstancesInvolved(c.c1) ++ getClassifierAndInstancesInvolved(c.c2)
+      case c: Implication[_, _] =>
+        getClassifierAndInstancesInvolved(c.p) ++ getClassifierAndInstancesInvolved(c.q)
       case c: Negation[_] =>
         getClassifierAndInstancesInvolved(c.p)
       case c: ConstraintCollections[_, _] =>

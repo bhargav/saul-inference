@@ -150,6 +150,8 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
         getInstancesInvolved(c.c1) ++ getInstancesInvolved(c.c2)
       case c: PairDisjunction[_, _] =>
         getInstancesInvolved(c.c1) ++ getInstancesInvolved(c.c2)
+      case c: Implication[_, _] =>
+        getInstancesInvolved(c.p) ++ getInstancesInvolved(c.q)
       case c: Negation[_] =>
         getInstancesInvolved(c.p)
       case c: ConstraintCollections[_, _] =>

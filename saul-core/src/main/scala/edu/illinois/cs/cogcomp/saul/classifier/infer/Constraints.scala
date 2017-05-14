@@ -120,12 +120,11 @@ sealed trait Constraint[T] {
     new PairDisjunction[T, U](this, cons)
   }
 
-  def implies[U](q: Constraint[U]): PairDisjunction[T, U] = {
-    // p --> q can be modelled as not(p) or q
-    //PairConjunction[T, U](this.negate, q)
-    this.negate or (q and this)
+  def implies[U](q: Constraint[U]): Implication[T, U] = {
+    new Implication[T, U](this, q)
   }
-  def ==>[U](q: Constraint[U]): PairDisjunction[T, U] = implies(q)
+
+  def ==>[U](q: Constraint[U]): Implication[T, U] = implies(q)
 
   def ifAndOnlyIf[U](q: Constraint[U]): PairDisjunction[T, T] = {
     // p <--> q can be modelled as (p and q) or (not(p) and not(q))
