@@ -14,6 +14,7 @@ import cc.factorie.variable.{ CategoricalDomain, CategoricalValue }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
 import edu.illinois.cs.cogcomp.lbjava.learn.Softmax
 import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
+import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
 import edu.illinois.cs.cogcomp.saul.util.Logging
 
 import scala.collection.mutable
@@ -21,8 +22,8 @@ import scala.collection.mutable
 class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
-    val classifierDomainMap = new mutable.HashMap[Assignment, CategoricalDomain[String]]()
-    val instanceVariableMap = new mutable.HashMap[(Assignment, Any), CategoricalVariable[String]]()
+    val classifierDomainMap = new mutable.HashMap[LBJLearnerEquivalent, CategoricalDomain[String]]()
+    val instanceVariableMap = new mutable.HashMap[(LBJLearnerEquivalent, Any), CategoricalVariable[String]]()
 
     val factors = new mutable.ListBuffer[Factor]()
     val variables = new mutable.HashSet[CategoricalVariable[String]]()
@@ -39,7 +40,7 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
         val weights = Weights(new DenseTensor1(ClassifierDomain.size))
       }
 
-      classifierDomainMap += (assignment -> ClassifierDomain)
+      classifierDomainMap += (assignment.learner -> ClassifierDomain)
 
       assignment.foreach({
         case (instance: Any, scores: ScoreSet) =>
@@ -53,9 +54,12 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
           factors ++= family.factors(variable)
           variables += variable
 
-          instanceVariableMap += ((assignment, instance) -> variable)
+          instanceVariableMap += ((assignment.learner, instance) -> variable)
       })
     })
+
+    if (constraintsOpt.nonEmpty)
+      processConstraints(constraintsOpt.get, classifierDomainMap, instanceVariableMap, factors, variables)
 
     val model = new ItemizedModel(factors)
     val fg = BPSummary(variables, BPMaxProductRing, model)
@@ -63,11 +67,11 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
 
     val finalAssignments = priorAssignment.map({ assignment: Assignment =>
       val finalAssgn = Assignment(assignment.learner)
-      val domain = classifierDomainMap(assignment)
+      val domain = classifierDomainMap(assignment.learner)
 
       assignment.foreach({
         case (instance: Any, _) =>
-          val variable = instanceVariableMap((assignment, instance))
+          val variable = instanceVariableMap((assignment.learner, instance))
           val proportions = fg.marginal(variable).proportions
 
           val newScores = domain.map({ value: CategoricalValue[String] =>
@@ -82,5 +86,15 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
     })
 
     finalAssignments
+  }
+
+  private def processConstraints(
+    constraints: Constraint[_],
+    classifierDomainMap: mutable.HashMap[LBJLearnerEquivalent, CategoricalDomain[String]],
+    instanceVariableMap: mutable.HashMap[(LBJLearnerEquivalent, Any), CategoricalVariable[String]],
+    factors: mutable.ListBuffer[Factor],
+    variables: mutable.HashSet[CategoricalVariable[String]]
+  ): Unit = {
+    // No-op
   }
 }

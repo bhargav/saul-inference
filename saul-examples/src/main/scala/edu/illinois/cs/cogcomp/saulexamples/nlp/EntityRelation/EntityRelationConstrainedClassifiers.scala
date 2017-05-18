@@ -6,8 +6,8 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.nlp.EntityRelation
 
-import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.OJAlgo
-import edu.illinois.cs.cogcomp.saul.classifier.infer.{ ConstrainedClassifier, FactorConstrainedClassifier }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.{ InferenceSolver, MaxBPInferenceSolver, OJAlgo }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.ConstrainedClassifier
 import edu.illinois.cs.cogcomp.saulexamples.EntityMentionRelation.datastruct.{ ConllRawToken, ConllRelation }
 
 object EntityRelationConstrainedClassifiers {
@@ -47,9 +47,10 @@ object EntityRelationConstrainedClassifiers {
     override def solverType = OJAlgo
   }
 
-  object LivesInFactorConstrainedClassifier extends FactorConstrainedClassifier[ConllRelation, ConllRelation](EntityRelationDataModel.pairs) {
+  object LivesInFactorConstrainedClassifier extends ConstrainedClassifier[ConllRelation, ConllRelation] {
     override def onClassifier = EntityRelationClassifiers.LivesInClassifier
     override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
+    override lazy val inferenceSolver = new MaxBPInferenceSolver[ConllRelation, ConllRelation]()
   }
 }
 
