@@ -63,7 +63,7 @@ object EntityRelationApp extends Logging {
   /** This function loads the classifiers trained in function [[trainIndependentClassifiers]] and evaluates on the
     * test data.
     */
-  def testIndependentClassifiers() = {
+  def testIndependentClassifiers(): Unit = {
     EntityRelationDataModel.populateWithConll()
     ClassifierUtils.LoadClassifier(
       jarModelPath,

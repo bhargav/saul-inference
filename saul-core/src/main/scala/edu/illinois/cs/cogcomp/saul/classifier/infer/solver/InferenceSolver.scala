@@ -10,12 +10,6 @@ import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 
 import scala.collection.Seq
 
-/** possible solvers to use */
-sealed trait SolverType
-case object Gurobi extends SolverType
-case object OJAlgo extends SolverType
-case object Balas extends SolverType
-
 sealed trait OptimizationType
 case object Max extends OptimizationType
 case object Min extends OptimizationType

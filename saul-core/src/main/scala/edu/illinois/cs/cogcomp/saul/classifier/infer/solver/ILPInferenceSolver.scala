@@ -15,6 +15,12 @@ import edu.illinois.cs.cogcomp.saul.util.Logging
 
 import scala.collection.{ Seq, mutable }
 
+/** possible solvers to use */
+sealed trait SolverType
+case object Gurobi extends SolverType
+case object OJAlgo extends SolverType
+case object Balas extends SolverType
+
 class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
   val ilpSolverType: SolverType,
   val optimizationType: OptimizationType,
