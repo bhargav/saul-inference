@@ -6,7 +6,7 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.nlp.EntityRelation
 
-import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.{ InferenceSolver, MaxBPInferenceSolver, OJAlgo }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver._
 import edu.illinois.cs.cogcomp.saul.classifier.infer.ConstrainedClassifier
 import edu.illinois.cs.cogcomp.saulexamples.EntityMentionRelation.datastruct.{ ConllRawToken, ConllRelation }
 

@@ -7,7 +7,7 @@
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
 import cc.factorie.DenseTensor1
-import cc.factorie.infer.{ BP, BPMaxProductRing, BPSummary, MAPSummary }
+import cc.factorie.infer._
 import cc.factorie.model.{ DotTemplateWithStatistics1, Factor, ItemizedModel, Parameters }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
 import edu.illinois.cs.cogcomp.lbjava.learn.Softmax
@@ -21,8 +21,8 @@ import scala.collection.mutable
 class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
-    val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[(String, Int)]]()
-    val instanceVariableMap = new mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryRandomVariable, Int)]()
+    val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[(String, Boolean)]]()
+    val instanceVariableMap = new mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryRandomVariable, Boolean)]()
 
     val factors = new mutable.ListBuffer[Factor]()
     val variables = new mutable.ListBuffer[BinaryRandomVariable]()
@@ -35,9 +35,9 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
       }
 
       val labelIndexMap = if (labels.size == 2) {
-        labels.zipWithIndex
+        labels.zip(Array(false, true))
       } else {
-        labels.zip(Array.fill(labels.size)(1))
+        labels.zip(Array.fill(labels.size)(true))
       }
 
       classifierLabelMap += (assignment.learner -> labelIndexMap)
@@ -49,12 +49,13 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
           if (labels.size == 2) {
             val highScoreValue = normalizedScoreset.highScoreValue()
             val defaultIdx = labelIndexMap.filter(_._1 == highScoreValue).map(_._2).head
-            val binaryVariable = new BinaryRandomVariable(defaultIdx == 1, classifier = assignment.learner.classifier.name)
+            val binaryVariable = new BinaryRandomVariable(defaultIdx, classifier = assignment.learner.classifier.name)
 
             labelIndexMap.foreach({
-              case (label: String, index: Int) =>
-                family.weights.value(index) = math.log(normalizedScoreset.getScore(label).score)
-                instanceVariableMap += ((assignment.learner, label, instance) -> (binaryVariable, index))
+              case (label: String, state: Boolean) =>
+                val idx = if (state) 1 else 0
+                family.weights.value(idx) = math.log(normalizedScoreset.getScore(label).score)
+                instanceVariableMap += ((assignment.learner, label, instance) -> (binaryVariable, state))
             })
 
             factors += family.Factor(binaryVariable)
@@ -68,7 +69,7 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
               family.weights.value(0) = math.log(1 - score)
 
               val binaryVariable = new BinaryRandomVariable(score >= 0.5, classifier = s"${assignment.learner.classifier.name}_$label")
-              instanceVariableMap += ((assignment.learner, label, instance) -> (binaryVariable, 1))
+              instanceVariableMap += ((assignment.learner, label, instance) -> (binaryVariable, true))
 
               factors ++= family.Factor(binaryVariable)
               variables += binaryVariable
@@ -86,8 +87,8 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
       processConstraints(constraintsOpt.get, instanceVariableMap, factors, variables)
 
     val model = new ItemizedModel(factors)
-    val loopyMaxSummary = BPSummary(variables, BPMaxProductRing, model)
-    //    val fg = BP.inferLoopyTreewiseMax(variables, model, 10)
+    val loopyMaxSummary = LoopyBPSummaryMaxProduct(variables, BPMaxProductRing, model)
+    //        val fg = BP.inferChainMax(variables, model)
     BP.inferLoopyMax(loopyMaxSummary)
 
     val assignment = loopyMaxSummary.maximizingAssignment
@@ -106,7 +107,7 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
           val newScores = domain.map({
             case (label: String, _) =>
               val variable = instanceVariableMap((assignment.learner, label, instance))
-              val mapAssignment = if (fg.mapAssignment(variable._1).intValue == variable._2) 1.0 else 0.0
+              val mapAssignment = if (fg.mapAssignment(variable._1).category == variable._2) 1.0 else 0.0
               new Score(label, mapAssignment)
           }).toArray
 
@@ -121,7 +122,7 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
 
   private def processConstraints(
     constraint: Constraint[_],
-    instanceVariableMap: mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryRandomVariable, Int)],
+    instanceVariableMap: mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryRandomVariable, Boolean)],
     factors: mutable.ListBuffer[Factor],
     variables: mutable.ListBuffer[BinaryRandomVariable],
     createVariable: Boolean = false
@@ -129,9 +130,12 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
     constraint match {
       case c: PropositionalEqualityConstraint[_] =>
         val value = c.equalityValOpt.orElse(c.inequalityValOpt).get
-        val isEquality = c.equalityValOpt.nonEmpty
-        val variable = instanceVariableMap((c.estimator, value, c.instanceOpt.get))._1
-        Some((variable, isEquality))
+        val variableWithState = instanceVariableMap((c.estimator, value, c.instanceOpt.get))
+
+        // Handle negative variable states
+        val isEquality = c.equalityValOpt.nonEmpty == variableWithState._2
+
+        Some((variableWithState._1, isEquality))
       case c: PairConjunction[_, _] =>
         val leftVariable = processConstraints(
           c.c1,
