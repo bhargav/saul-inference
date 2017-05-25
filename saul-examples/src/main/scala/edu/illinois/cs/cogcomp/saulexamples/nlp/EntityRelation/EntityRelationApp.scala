@@ -200,6 +200,6 @@ object EntityRelationApp extends Logging {
     ClassifierUtils.LoadClassifier(jarModelPath, PersonClassifier, OrganizationClassifier, LocationClassifier,
       WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
 
-    LivesInFactorConstrainedClassifier.test()
+    LivesInRelationFactorConstrainedClassifier.test()
   }
 }
