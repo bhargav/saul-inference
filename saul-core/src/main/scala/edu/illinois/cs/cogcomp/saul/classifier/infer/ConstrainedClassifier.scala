@@ -25,6 +25,9 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   implicit val headType: ClassTag[HEAD]
 ) extends Logging {
 
+  type InstanceType = T
+  type HeadType = HEAD
+
   def onClassifier: LBJLearnerEquivalent
   protected def subjectTo: Option[Constraint[HEAD]] = None
   protected def solverType: SolverType = OJAlgo
@@ -98,7 +101,7 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   }
 
   /** given an instance */
-  def apply(instance: T): String = {
+  def apply(instance: InstanceType): String = {
     val headInstance = findHead(instance)
 
     if (headInstance.isEmpty) {

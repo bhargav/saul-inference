@@ -14,6 +14,7 @@ import scala.collection.JavaConverters._
 object EntityRelationSensors {
   val path = "../data/"
   val resourcePath = "../saul-examples/src/test/resources/EntityMentionRelation/"
+  val filterSentencesWithRelations = true
 
   // Create single instances of Gazeteers and cache then with the object.
   lazy val cityGazetSensor = new GazeteerReader("gazeteer/known_city.lst", "Gaz:City", true, true)
@@ -22,7 +23,7 @@ object EntityRelationSensors {
 
   def readConllData(dir: String): (List[ConllRawSentence], List[ConllRelation], List[ConllRawToken]) = {
     val reader = new Conll04_Reader(dir, "Token")
-    val sentences = reader.sentences.asScala.toList
+    val sentences = reader.sentences.asScala.filter(!filterSentencesWithRelations || _.relations.size() > 0).toList
     val tokens = sentences.flatMap { a => a.getEntitiesInSentence.asScala }
     (sentences, reader.relations.asScala.toList, tokens)
   }
