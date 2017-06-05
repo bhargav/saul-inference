@@ -88,7 +88,6 @@ class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[
 
     val model = new ItemizedModel(factors)
     val loopyMaxSummary = LoopyBPSummaryMaxProduct(variables, BPMaxProductRing, model)
-    //        val fg = BP.inferChainMax(variables, model)
     BP.inferLoopyMax(loopyMaxSummary)
 
     val assignment = loopyMaxSummary.maximizingAssignment
