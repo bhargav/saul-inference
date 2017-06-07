@@ -48,7 +48,6 @@ object EntityRelationConstrainedClassifiers {
     override lazy val onClassifier = EntityRelationClassifiers.LivesInClassifier
     override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
     override def solverType = OJAlgo
-    override lazy val inferenceSolver = new MaxBPInferenceSolver[ConllRelation, ConllRelation]()
   }
 }
 

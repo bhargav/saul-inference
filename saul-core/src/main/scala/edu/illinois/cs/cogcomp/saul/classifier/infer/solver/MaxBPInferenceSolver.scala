@@ -18,7 +18,7 @@ import edu.illinois.cs.cogcomp.saul.util.Logging
 
 import scala.collection.mutable
 
-class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
+final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
     val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[(String, Boolean)]]()

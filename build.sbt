@@ -55,7 +55,8 @@ lazy val commonSettings = Seq(
   organization := ccgGroupId,
   name := "saul-project",
   resolvers ++= Seq(
-    "CogcompSoftware" at "http://cogcomp.cs.illinois.edu/m2repo/"
+    "CogcompSoftware" at "http://cogcomp.cs.illinois.edu/m2repo/",
+    Resolver.mavenLocal
   ),
   javaOptions ++= List("-Xmx11g"),
   libraryDependencies ++= Seq(
@@ -63,6 +64,8 @@ lazy val commonSettings = Seq(
     ccgGroupId % "illinois-core-utilities" % cogcompNLPVersion withSources,
     ccgGroupId % "illinois-inference" % cogcompNLPVersion withSources,
     "com.gurobi" % "gurobi" % "7.0.1",
+    "edu.cmu.cs.ark" % "ad3-jni" % "2.0.1-SNAPSHOT",
+    "srmp" % "srmp-jni" % "1.0.1-SNAPSHOT",
     "cc.factorie" %% "factorie" % "1.2",
     "org.apache.commons" % "commons-math3" % "3.6.1",
     "org.scalatest" %% "scalatest" % "2.2.4",
