@@ -18,7 +18,7 @@ import scala.collection.mutable
 final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
-    val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[(String, Boolean)]]()
+    val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[String]]()
     val instanceVariableMap = new mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryVariable, Boolean)]()
 
     val factorGraph = new FactorGraph()
@@ -28,14 +28,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
 
     priorAssignment.foreach({ assignment: Assignment =>
       val labels: List[String] = assignment.learner.classifier.scores(assignment.head._1).toArray.map(_.value).toList.sorted
-
-      val labelIndexMap = if (labels.size == 2) {
-        labels.zip(Array(false, true))
-      } else {
-        labels.zip(Array.fill(labels.size)(true))
-      }
-
-      classifierLabelMap += (assignment.learner -> labelIndexMap)
+      classifierLabelMap += (assignment.learner -> labels)
 
       assignment.foreach({
         case (instance: Any, scores: ScoreSet) =>
@@ -71,8 +64,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
     } else if (mapResult.status == 3) {
       logger.warn("Unsolved problem. Using original assignment.")
       priorAssignment
-    }
-    else {
+    } else {
       val finalAssignments = priorAssignment.map({ assignment: Assignment =>
         val finalAssgn = Assignment(assignment.learner)
         val domain = classifierLabelMap(assignment.learner)
@@ -80,7 +72,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
         assignment.foreach({
           case (instance: Any, _) =>
             val newScores = domain.map({
-              case (label: String, _) =>
+              case (label: String) =>
                 val variableTuple = instanceVariableMap((assignment.learner, label, instance))
                 val binaryVariable = variableTuple._1
                 val state = variableTuple._2
