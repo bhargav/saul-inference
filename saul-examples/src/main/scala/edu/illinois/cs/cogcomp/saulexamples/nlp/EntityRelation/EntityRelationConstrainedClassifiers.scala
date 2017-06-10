@@ -43,11 +43,5 @@ object EntityRelationConstrainedClassifiers {
     override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
     override def solverType = OJAlgo
   }
-
-  object LivesInRelationFactorConstrainedClassifier extends ConstrainedClassifier[ConllRelation, ConllRelation] {
-    override lazy val onClassifier = EntityRelationClassifiers.LivesInClassifier
-    override def subjectTo = Some(EntityRelationConstraints.relationArgumentConstraints)
-    override def solverType = OJAlgo
-  }
 }
 

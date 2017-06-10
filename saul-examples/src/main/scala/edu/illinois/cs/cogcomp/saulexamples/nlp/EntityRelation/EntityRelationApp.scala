@@ -26,7 +26,7 @@ object EntityRelationApp extends Logging {
 
   def main(args: Array[String]): Unit = {
     /** Choose the experiment you're interested in by changing the following line */
-    val testType = ERExperimentType.LPlusICV
+    val testType = ERExperimentType.FactorConstrained
 
     testType match {
       case ERExperimentType.IndependentClassifiers => trainIndependentClassifiers()
@@ -369,7 +369,11 @@ object EntityRelationApp extends Logging {
     ClassifierUtils.LoadClassifier(jarModelPath, PersonClassifier, OrganizationClassifier, LocationClassifier,
       WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
 
-    WorksForRelationConstrainedClassifier.test()
-    LivesInRelationFactorConstrainedClassifier.test()
+    val filteredTestRelations = pairs.getTestingInstances.filter(_.relType != "Kill")
+    WorksForClassifier.test(filteredTestRelations)
+    WorksForRelationConstrainedClassifier.test(filteredTestRelations)
+
+    LivesInClassifier.test(filteredTestRelations)
+    LivesInRelationConstrainedClassifier.test(filteredTestRelations)
   }
 }
