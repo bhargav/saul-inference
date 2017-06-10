@@ -48,7 +48,7 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
         logger.trace("Solving a new inference problem")
 
         // create a new solver instance
-        val solver = getSolverInstance
+        val solver = ILPInferenceSolver.getSolverInstance(ilpSolverType)
         solver.setMaximize(optimizationType == Max)
 
         // populate the instances connected to head
@@ -73,14 +73,6 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
 
         getInstanceAssignment(priorAssignment, solver, inferenceManager.estimatorToSolverLabelMap)
     }
-  }
-
-  /** given a solver type, instantiates a solver, upon calling it */
-  private def getSolverInstance: ILPSolver = ilpSolverType match {
-    case OJAlgo => new OJalgoHook()
-    case Gurobi => new GurobiHook()
-    case Balas => new BalasHook()
-    case _ => throw new Exception("Hook not found! ")
   }
 
   /** given an instance, the result of the inference inside an [[ILPSolver]], and a hashmap which connects
@@ -172,5 +164,16 @@ class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
       case _ =>
         throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
+  }
+}
+
+object ILPInferenceSolver {
+
+  /** given a solver type, instantiates a solver, upon calling it */
+  def getSolverInstance(ilpSolverType: SolverType): ILPSolver = ilpSolverType match {
+    case OJAlgo => new OJalgoHook()
+    case Gurobi => new GurobiHook()
+    case Balas => new BalasHook()
+    case _ => throw new Exception("Hook not found! ")
   }
 }

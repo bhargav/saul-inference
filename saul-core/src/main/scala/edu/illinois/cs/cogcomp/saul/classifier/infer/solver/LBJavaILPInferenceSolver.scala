@@ -6,39 +6,93 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
-import edu.illinois.cs.cogcomp.infer.ilp.{ ILPSolver, OJalgoHook }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
 import edu.illinois.cs.cogcomp.lbjava.infer.{ PropositionalConstraint => LBJPropositionalConstraint, _ }
+
 import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Constraint => SaulConstraint, _ }
 import edu.illinois.cs.cogcomp.saul.util.Logging
 
-class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverHookInstance: ILPSolver = new OJalgoHook)
+import scala.collection.mutable
+
+class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverType: SolverType)
   extends InferenceSolver[T, HEAD] with Logging {
-  private def transformToLBJConstraint(constraint: SaulConstraint[_]): LBJPropositionalConstraint = {
+
+  override def solve(constraintsOpt: Option[SaulConstraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
+    val solverHookInstance = ILPInferenceSolver.getSolverInstance(solverType)
+    val inference = new LBJavaPropositionalILPInference(solverHookInstance)
+    val variableBuffer = mutable.HashSet[FirstOrderVariable]()
+    val lbjConstraints = transformToLBJConstraint(constraintsOpt.get, variableBuffer)
+
+    inference.addConstraint(lbjConstraints, variableBuffer.toSeq)
+    inference.infer()
+
+    val finalAssignment = priorAssignment.map({ assignment: Assignment =>
+      val finalAssgn = Assignment(assignment.learner)
+
+      assignment.foreach({
+        case (instance: Any, scoreset: ScoreSet) =>
+          logger.debug(s"$instance - Previous: ${scoreset.highScoreValue()}")
+          val label = inference.valueOf(assignment.learner.classifier, instance)
+          logger.debug(s"$instance - After ${inference.valueOf(assignment.learner.classifier, instance)}")
+
+          val newScores = scoreset.toArray
+            .map({ score: Score =>
+              new Score(score.value, if (score.value == label) 1.0 else 0.0)
+            })
+
+          assert(newScores.map(_.score).sum == 1.0)
+          finalAssgn += (instance -> new ScoreSet(newScores))
+      })
+
+      finalAssgn
+    })
+
+    finalAssignment
+  }
+
+  private def transformToLBJConstraint(constraint: SaulConstraint[_], variableSet: mutable.HashSet[FirstOrderVariable]): LBJPropositionalConstraint = {
     constraint match {
       case c: PropositionalEqualityConstraint[_] =>
         val variable = new FirstOrderVariable(c.estimator.classifier, c.instanceOpt.get)
+        variableSet += variable
+
         val value = c.equalityValOpt.orElse(c.inequalityValOpt).get
         val isEquality = c.equalityValOpt.nonEmpty
         new FirstOrderEqualityWithValue(isEquality, variable, value).propositionalize()
 
+      case c: InstancePairEqualityConstraint[_] =>
+        val firstVariable = new FirstOrderVariable(c.estimator.classifier, c.instance1)
+        val secondVariable = new FirstOrderVariable(c.estimator.classifier, c.instance2Opt.get)
+        variableSet += firstVariable
+        variableSet += secondVariable
+
+        new FirstOrderEqualityWithVariable(c.equalsOpt.get, firstVariable, secondVariable).propositionalize()
+
+      case c: EstimatorPairEqualityConstraint[_] =>
+        val firstVariable = new FirstOrderVariable(c.estimator1.classifier, c.instance)
+        val secondVariable = new FirstOrderVariable(c.estimator2Opt.get.classifier, c.instance)
+        variableSet += firstVariable
+        variableSet += secondVariable
+
+        new FirstOrderEqualityWithVariable(c.equalsOpt.get, firstVariable, secondVariable).propositionalize()
+
       case c: PairConjunction[_, _] =>
-        val leftConstraint = transformToLBJConstraint(c.c1)
-        val rightConstraint = transformToLBJConstraint(c.c2)
+        val leftConstraint = transformToLBJConstraint(c.c1, variableSet)
+        val rightConstraint = transformToLBJConstraint(c.c2, variableSet)
         new PropositionalConjunction(leftConstraint, rightConstraint)
 
       case c: PairDisjunction[_, _] =>
-        val leftConstraint = transformToLBJConstraint(c.c1)
-        val rightConstraint = transformToLBJConstraint(c.c2)
+        val leftConstraint = transformToLBJConstraint(c.c1, variableSet)
+        val rightConstraint = transformToLBJConstraint(c.c2, variableSet)
         new PropositionalDisjunction(leftConstraint, rightConstraint)
 
       case c: Implication[_, _] =>
-        val leftConstraint = transformToLBJConstraint(c.p)
-        val rightConstraint = transformToLBJConstraint(c.q)
+        val leftConstraint = transformToLBJConstraint(c.p, variableSet)
+        val rightConstraint = transformToLBJConstraint(c.q, variableSet)
         new PropositionalImplication(leftConstraint, rightConstraint)
 
       case c: Negation[_] =>
-        val constraint = transformToLBJConstraint(c.p)
+        val constraint = transformToLBJConstraint(c.p, variableSet)
         logger.warn("Unsupported!")
         // Verify this once.
         new PropositionalNegation(constraint)
@@ -46,7 +100,7 @@ class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverHookInstance: 
       case c: ForAll[_, _] =>
         val firstOrderConstraints = c.constraints
           .map({ cons: SaulConstraint[_] =>
-            transformToLBJConstraint(cons)
+            transformToLBJConstraint(cons, variableSet)
           }).toList
 
         firstOrderConstraints.length match {
@@ -61,21 +115,21 @@ class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverHookInstance: 
         }
 
       case c: AtLeast[_, _] =>
-        val propConstraints = c.constraints.map(transformToLBJConstraint).toArray
+        val propConstraints = c.constraints.map(c => transformToLBJConstraint(c, variableSet)).toArray
         new PropositionalAtLeast(propConstraints, c.k)
 
       case c: AtMost[_, _] =>
         // AtMost can be written as AtLeast of (length - k) size.
         val negativePropConstraints: Array[LBJPropositionalConstraint] = c.constraints
-          .map(c => new PropositionalNegation(transformToLBJConstraint(c)))
+          .map(c => new PropositionalNegation(transformToLBJConstraint(c, variableSet)))
           .toArray
         new PropositionalAtLeast(negativePropConstraints, negativePropConstraints.length - c.k)
 
       case c: Exactly[_, _] =>
         // Exactly can be written as a combination of AtLeast and AtMost
-        val propositionalConstraints = c.constraints.map(transformToLBJConstraint).toArray
+        val propositionalConstraints = c.constraints.map(c => transformToLBJConstraint(c, variableSet)).toArray
         val negativePropConstraints: Array[LBJPropositionalConstraint] = c.constraints
-          .map(c => new PropositionalNegation(transformToLBJConstraint(c)))
+          .map(c => new PropositionalNegation(transformToLBJConstraint(c, variableSet)))
           .toArray
         val atLeastConstraint = new PropositionalAtLeast(propositionalConstraints, c.k)
         val atMostConstraint = new PropositionalAtLeast(negativePropConstraints, negativePropConstraints.length - c.k)
@@ -86,37 +140,4 @@ class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverHookInstance: 
     }
   }
 
-  override def solve(constraintsOpt: Option[SaulConstraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
-    val inference = new LBJavaPropositionalILPInference(solverHookInstance)
-    val lbjConstraints = transformToLBJConstraint(constraintsOpt.get)
-
-    inference.addConstraint(lbjConstraints)
-
-    val finalAssignment = priorAssignment.map({ assignment: Assignment =>
-      val finalAssgn = Assignment(assignment.learner)
-
-      assignment.foreach({
-        case (instance: Any, scoreset: ScoreSet) =>
-          logger.debug(s"$instance - Previous: ${scoreset.highScoreValue()}")
-          val label = inference.valueOf(assignment.learner.classifier, instance)
-          logger.debug(s"$instance - After ${inference.valueOf(assignment.learner.classifier, instance)}")
-
-          val allLabels = scoreset.toArray
-          allLabels.foreach({ score: Score =>
-            if (score.value == label) {
-              score.score = 1.0
-            } else {
-              score.score = 0.0
-            }
-          })
-
-          assert(allLabels.map(_.score).sum == 1.0)
-          finalAssgn += (instance -> new ScoreSet(allLabels))
-      })
-
-      finalAssgn
-    })
-
-    finalAssignment
-  }
 }

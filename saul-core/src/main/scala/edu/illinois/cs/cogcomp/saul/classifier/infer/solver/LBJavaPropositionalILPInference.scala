@@ -10,12 +10,9 @@ import java.util
 import java.util.Date
 
 import edu.illinois.cs.cogcomp.infer.ilp.ILPSolver
-import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
+import edu.illinois.cs.cogcomp.lbjava.classify.Score
 import edu.illinois.cs.cogcomp.lbjava.infer._
 import edu.illinois.cs.cogcomp.saul.util.Logging
-
-import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
 
 import scala.collection.JavaConverters._
 
@@ -27,13 +24,16 @@ class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInf
   /** Add a Propositional Constraint to the system of constraints to solve.
     * @param c Propositional constraint to consider.
     */
-  def addConstraint(c: PropositionalConstraint): Unit = {
+  def addConstraint(c: PropositionalConstraint, variablesToConsider: Seq[FirstOrderVariable]): Unit = {
     solver.reset()
 
     if (constraint == null)
       constraint = c
     else
       constraint = new PropositionalConjunction(constraint.asInstanceOf[PropositionalConstraint], c)
+
+    // Calling getVariable adds the variable to the `variables` field that is used in the `infer` method.
+    variablesToConsider.foreach(getVariable)
   }
 
   override def infer(): Unit = {
@@ -42,15 +42,9 @@ class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInf
       return
     }
 
-    val variablesMapLocal = new util.HashMap[PropositionalVariable, PropositionalVariable]()
     val indexMapLocal = new util.HashMap[PropositionalVariable, Integer]()
 
     solver.setMaximize(true)
-    constraint.consolidateVariables(variablesMapLocal)
-
-    variablesMapLocal.values().asScala.foreach({ propVariable: PropositionalVariable =>
-      getVariable(new FirstOrderVariable(propVariable.getClassifier, propVariable.getExample))
-    })
 
     if (verbosity > ILPInference.VERBOSITY_NONE) logger.info("variables: (" + new Date() + ")")
 
