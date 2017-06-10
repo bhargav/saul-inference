@@ -6,96 +6,101 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
-import java.util
-
-import edu.illinois.cs.cogcomp.infer.ilp.{ GurobiHook, OJalgoHook }
+import edu.illinois.cs.cogcomp.infer.ilp.{ ILPSolver, OJalgoHook }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
-import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => _, _ }
-import edu.illinois.cs.cogcomp.saul.classifier.infer._
+import edu.illinois.cs.cogcomp.lbjava.infer.{ PropositionalConstraint => LBJPropositionalConstraint, _ }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Constraint => SaulConstraint, _ }
 import edu.illinois.cs.cogcomp.saul.util.Logging
 
-class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
-  private def transformToLBJConstraint(constraint: Constraint[_]): FirstOrderConstraint = {
+class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverHookInstance: ILPSolver = new OJalgoHook)
+  extends InferenceSolver[T, HEAD] with Logging {
+  private def transformToLBJConstraint(constraint: SaulConstraint[_]): LBJPropositionalConstraint = {
     constraint match {
       case c: PropositionalEqualityConstraint[_] =>
         val variable = new FirstOrderVariable(c.estimator.classifier, c.instanceOpt.get)
         val value = c.equalityValOpt.orElse(c.inequalityValOpt).get
         val isEquality = c.equalityValOpt.nonEmpty
-        new FirstOrderEqualityWithValue(isEquality, variable, value)
+        new FirstOrderEqualityWithValue(isEquality, variable, value).propositionalize()
+
       case c: PairConjunction[_, _] =>
         val leftConstraint = transformToLBJConstraint(c.c1)
         val rightConstraint = transformToLBJConstraint(c.c2)
-        new FirstOrderConjunction(leftConstraint, rightConstraint)
+        new PropositionalConjunction(leftConstraint, rightConstraint)
+
       case c: PairDisjunction[_, _] =>
         val leftConstraint = transformToLBJConstraint(c.c1)
         val rightConstraint = transformToLBJConstraint(c.c2)
-        new FirstOrderDisjunction(leftConstraint, rightConstraint)
+        new PropositionalDisjunction(leftConstraint, rightConstraint)
+
       case c: Implication[_, _] =>
         val leftConstraint = transformToLBJConstraint(c.p)
         val rightConstraint = transformToLBJConstraint(c.q)
-        new FirstOrderImplication(leftConstraint, rightConstraint)
+        new PropositionalImplication(leftConstraint, rightConstraint)
+
       case c: Negation[_] =>
         val constraint = transformToLBJConstraint(c.p)
         logger.warn("Unsupported!")
         // Verify this once.
-        new FirstOrderNegation(constraint)
+        new PropositionalNegation(constraint)
+
       case c: ForAll[_, _] =>
-        val firstOrderConstraints = c.constraints.map({ cons: Constraint[_] =>
-          transformToLBJConstraint(cons)
-        }).toList
+        val firstOrderConstraints = c.constraints
+          .map({ cons: SaulConstraint[_] =>
+            transformToLBJConstraint(cons)
+          }).toList
 
         firstOrderConstraints.length match {
-          case 0 => new FirstOrderConstant(true)
+          case 0 => new PropositionalConstant(true)
           case 1 => firstOrderConstraints.head
-          case _ => {
+          case _ =>
             val first = firstOrderConstraints.head
             val second = firstOrderConstraints(1)
-            val forAll = new FirstOrderConjunction(first, second)
+            val forAll = new PropositionalConjunction(first, second)
             firstOrderConstraints.drop(2).foreach(forAll.add)
             forAll
-          }
         }
 
       case c: AtLeast[_, _] =>
-        logger.warn("Unsupported!")
-        new FirstOrderConstant(true)
+        val propConstraints = c.constraints.map(transformToLBJConstraint).toArray
+        new PropositionalAtLeast(propConstraints, c.k)
+
       case c: AtMost[_, _] =>
-        logger.warn("Unsupported!")
-        new FirstOrderConstant(true)
+        // AtMost can be written as AtLeast of (length - k) size.
+        val negativePropConstraints: Array[LBJPropositionalConstraint] = c.constraints
+          .map(c => new PropositionalNegation(transformToLBJConstraint(c)))
+          .toArray
+        new PropositionalAtLeast(negativePropConstraints, negativePropConstraints.length - c.k)
+
       case c: Exactly[_, _] =>
-        logger.warn("Unsupported!")
-        new FirstOrderConstant(true)
-      case c: ConstraintCollections[_, _] =>
-        logger.warn("Unsupported!")
-        new FirstOrderConstant(true)
-      //        c.constraints.foldRight(Set[Any]()) {
-      //          case (singleConstraint, ins) =>
-      //            ins union getInstancesInvolved(singleConstraint).asInstanceOf[Set[Any]]
-      //        }
+        // Exactly can be written as a combination of AtLeast and AtMost
+        val propositionalConstraints = c.constraints.map(transformToLBJConstraint).toArray
+        val negativePropConstraints: Array[LBJPropositionalConstraint] = c.constraints
+          .map(c => new PropositionalNegation(transformToLBJConstraint(c)))
+          .toArray
+        val atLeastConstraint = new PropositionalAtLeast(propositionalConstraints, c.k)
+        val atMostConstraint = new PropositionalAtLeast(negativePropConstraints, negativePropConstraints.length - c.k)
+        new PropositionalConjunction(atLeastConstraint, atMostConstraint)
+
       case _ =>
-        //        new FirstOrderConstant(true)
-        //      case c: EstimatorPairEqualityConstraint[_] =>
-        //        Set(c.instance)
-        //      case c: InstancePairEqualityConstraint[_] =>
-        //        Set(c.instance1, c.instance2Opt.get)
-        //      case _ =>
         throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
   }
 
-  override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
+  override def solve(constraintsOpt: Option[SaulConstraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
+    val inference = new LBJavaPropositionalILPInference(solverHookInstance)
     val lbjConstraints = transformToLBJConstraint(constraintsOpt.get)
 
-    val inference = new LBJavaPropositionalILPInference(new OJalgoHook())
-    inference.addConstraint(lbjConstraints.propositionalize())
+    inference.addConstraint(lbjConstraints)
 
     val finalAssignment = priorAssignment.map({ assignment: Assignment =>
       val finalAssgn = Assignment(assignment.learner)
 
       assignment.foreach({
         case (instance: Any, scoreset: ScoreSet) =>
-          //        println(s"$instance - Previous: ${scoreset.highScoreValue()} - After ${inference.valueOf(assignment.learner.classifier, instance)}")
+          logger.debug(s"$instance - Previous: ${scoreset.highScoreValue()}")
           val label = inference.valueOf(assignment.learner.classifier, instance)
+          logger.debug(s"$instance - After ${inference.valueOf(assignment.learner.classifier, instance)}")
+
           val allLabels = scoreset.toArray
           allLabels.foreach({ score: Score =>
             if (score.value == label) {
@@ -105,6 +110,7 @@ class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
             }
           })
 
+          assert(allLabels.map(_.score).sum == 1.0)
           finalAssgn += (instance -> new ScoreSet(allLabels))
       })
 
