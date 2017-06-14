@@ -226,7 +226,6 @@ class InferenceTest extends FlatSpec with Matchers {
   "ForAllNotTrue " should " return all false instances" in {
     val allNotTrueInference = new DummyConstrainedInference(Some(forAllNotTrue), classifierPositiveScoreForTrue)
     instanceSet.foreach { ins => allNotTrueInference(ins) should be("false") }
-    instanceSet.foreach { ins => info(allNotTrueInference(ins)) }
   }
 
   // exists true
@@ -375,49 +374,49 @@ class InferenceTest extends FlatSpec with Matchers {
     val classifierSameValueTwoInstancesInference = new DummyConstrainedInference(
       Some(allInstancesShouldBeTrue), classifierPositiveScoreForTrue
     )
-    instanceSet.forall { ins => classifierSameValueTwoInstancesInference(ins) == "true" }
+    instanceSet.forall { ins => classifierSameValueTwoInstancesInference(ins) == "true" } should be(true)
   }
 
   "trueImpliesTrue " should "work" in {
     val classifierSameValueTwoInstancesInference = new DummyConstrainedInference(
       Some(trueImpliesTrue), classifierNegativeScoreForTrue
     )
-    classifierSameValueTwoInstancesInference(instanceSet(0)) == "true" &&
-      classifierSameValueTwoInstancesInference(instanceSet(1)) == "true"
+    assert(classifierSameValueTwoInstancesInference(instanceSet(0)) == "true" &&
+      classifierSameValueTwoInstancesInference(instanceSet(1)) == "true")
   }
 
   "trueImpliesFalse " should "work" in {
     val classifierSameValueTwoInstancesInference = new DummyConstrainedInference(
       Some(trueImpliesFalse), classifierNegativeScoreForTrue
     )
-    classifierSameValueTwoInstancesInference(instanceSet(0)) == "true" &&
-      classifierSameValueTwoInstancesInference(instanceSet(1)) == "false"
+    assert(classifierSameValueTwoInstancesInference(instanceSet(0)) == "true" &&
+      classifierSameValueTwoInstancesInference(instanceSet(1)) == "false")
   }
 
   "falseImpliesTrue " should "work" in {
     val classifierSameValueTwoInstancesInference = new DummyConstrainedInference(
       Some(falseImpliesTrue), classifierNegativeScoreForTrue
     )
-    classifierSameValueTwoInstancesInference(instanceSet(0)) == "false" &&
-      classifierSameValueTwoInstancesInference(instanceSet(1)) == "true"
+    assert(classifierSameValueTwoInstancesInference(instanceSet(0)) == "false" &&
+      classifierSameValueTwoInstancesInference(instanceSet(1)) == "true")
   }
 
   "falseImpliesFalse " should "work" in {
     val classifierSameValueTwoInstancesInference = new DummyConstrainedInference(
       Some(falseImpliesFalse), classifierNegativeScoreForTrue
     )
-    classifierSameValueTwoInstancesInference(instanceSet(0)) == "false" &&
-      classifierSameValueTwoInstancesInference(instanceSet(1)) == "false"
+    assert(classifierSameValueTwoInstancesInference(instanceSet(0)) == "false" &&
+      classifierSameValueTwoInstancesInference(instanceSet(1)) == "false")
   }
 
   "halfTrueHalfFalsePositiveClassifier" should " work properly" in {
     val halfTrueHalfFalsePositiveClassifierInference = new DummyConstrainedInference(
       Some(halfTrueHalfFalsePositiveClassifier), classifierPositiveScoreForTrue
     )
-    ((0 to instanceSet.size / 2).forall(i => halfTrueHalfFalsePositiveClassifierInference(instanceSet(i)) == "true") &&
+    assert(((0 to instanceSet.size / 2).forall(i => halfTrueHalfFalsePositiveClassifierInference(instanceSet(i)) == "true") &&
       ((instanceSet.size / 2 + 1) until instanceSet.size).forall(i => halfTrueHalfFalsePositiveClassifierInference(instanceSet(i)) == "false")) ||
       ((0 to instanceSet.size / 2).forall(i => halfTrueHalfFalsePositiveClassifierInference(instanceSet(i)) == "false") &&
-        ((instanceSet.size / 2 + 1) until instanceSet.size).forall(i => halfTrueHalfFalsePositiveClassifierInference(instanceSet(i)) == "true"))
+        ((instanceSet.size / 2 + 1) until instanceSet.size).forall(i => halfTrueHalfFalsePositiveClassifierInference(instanceSet(i)) == "true")))
   }
 
   "conjunctionOfDisjunctions " should " work" in {
