@@ -16,6 +16,8 @@ import edu.illinois.cs.cogcomp.saul.util.Logging
 import scala.collection.mutable
 
 final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
+  private val maxLogPotential = 100
+
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
     val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[String]]()
@@ -51,12 +53,12 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
     })
 
     if (constraintsOpt.nonEmpty)
-      processConstraints(constraintsOpt.get, instanceVariableMap, factorGraph, factors, variables)
+      processConstraints(constraintsOpt.get, instanceVariableMap, classifierLabelMap, factorGraph, factors, variables)
 
     factorGraph.setVerbosity(0)
     factorGraph.fixMultiVariablesWithoutFactors()
 
-    val mapResult: MAPResult = factorGraph.solveLPMAPWithPSDD()
+    val mapResult: MAPResult = factorGraph.solveExactMAPWithAD3()
 
     if (mapResult.status == 2) {
       logger.warn("Infeasible problem. Using original assignments.")
@@ -94,6 +96,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
   private def processConstraints(
     constraint: Constraint[_],
     instanceVariableMap: mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryVariable, Boolean)],
+    classifierLabelMap: mutable.HashMap[LBJLearnerEquivalent, List[String]],
     factorGraph: FactorGraph,
     factors: mutable.ListBuffer[Factor],
     variables: mutable.ListBuffer[BinaryVariable],
@@ -107,20 +110,84 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
         // Handle negative variable states
         val isEquality = c.equalityValOpt.nonEmpty == variableWithState._2
 
-        Some((variableWithState._1, isEquality))
+        if (createVariable) {
+          Some((variableWithState._1, isEquality))
+        } else {
+          // If this constraint is not a top-level constraint, add a factor to force its value.
+          val outputVariable = factorGraph.createBinaryVariable()
+          outputVariable.setLogPotential(maxLogPotential)
+
+          val factor = factorGraph.createFactorIMPLY(
+            Array(outputVariable, variableWithState._1),
+            Array(false, !isEquality),
+            true
+          )
+          factors += factor
+          variables += outputVariable
+
+          None
+        }
+
+      case c: InstancePairEqualityConstraint[_] =>
+        val isEquality = c.equalsOpt.get
+        val labels = classifierLabelMap(c.estimator)
+        val firstVariables = labels.map({ label =>
+          instanceVariableMap((c.estimator, label, c.instance1))
+        })
+        val secondVariables = labels.map({ label =>
+          instanceVariableMap((c.estimator, label, c.instance2Opt.get))
+        })
+
+        if (createVariable) {
+          val outputVariable = factorGraph.createBinaryVariable()
+          outputVariable.setLogPotential(maxLogPotential)
+
+          firstVariables.zip(secondVariables)
+            .foreach({
+              case ((firstVar: BinaryVariable, firstState: Boolean), (secondVar: BinaryVariable, secondState: Boolean)) =>
+                val firstNegatedState = if (isEquality) firstState else !firstState
+                val secondNegatedState = !secondState
+                factors += factorGraph.createFactorXOROUT(
+                  Array(firstVar, secondVar, outputVariable),
+                  Array(firstNegatedState, secondNegatedState, false),
+                  true
+                )
+            })
+
+          variables += outputVariable
+
+          Some((outputVariable, true))
+        } else {
+          firstVariables.zip(secondVariables)
+            .foreach({
+              case ((firstVar: BinaryVariable, firstState: Boolean), (secondVar: BinaryVariable, secondState: Boolean)) =>
+                val firstNegatedState = if (isEquality) firstState else !firstState
+                val secondNegatedState = !secondState
+                factors += factorGraph.createFactorXOR(
+                  Array(firstVar, secondVar),
+                  Array(firstNegatedState, secondNegatedState),
+                  true
+                )
+            })
+
+          None
+        }
+
+      //      case c: EstimatorPairEqualityConstraint[_] =>
+
       case c: PairConjunction[_, _] =>
         val leftVariable = processConstraints(
           c.c1,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
+          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
         ).get
         val rightVariable = processConstraints(
           c.c2,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
+          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
         ).get
 
         if (createVariable) {
           val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(Double.PositiveInfinity)
+          outputVariable.setLogPotential(maxLogPotential)
 
           val factor = factorGraph.createFactorANDOUT(
             Array(leftVariable._1, rightVariable._1, outputVariable),
@@ -134,7 +201,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
           Some((outputVariable, true))
         } else {
           val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(Double.PositiveInfinity)
+          outputVariable.setLogPotential(maxLogPotential)
 
           val factor = factorGraph.createFactorANDOUT(
             Array(leftVariable._1, rightVariable._1, outputVariable),
@@ -148,16 +215,16 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
       case c: PairDisjunction[_, _] =>
         val leftVariable = processConstraints(
           c.c1,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
+          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
         ).get
         val rightVariable = processConstraints(
           c.c2,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
+          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
         ).get
 
         if (createVariable) {
           val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(Double.PositiveInfinity)
+          outputVariable.setLogPotential(maxLogPotential)
 
           // Handle negation etc.
           val factor = factorGraph.createFactorOROUT(
@@ -184,16 +251,16 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
       case c: Implication[_, _] =>
         val leftVariable = processConstraints(
           c.p.negate,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
+          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
         ).get
         val rightVariable = processConstraints(
           c.q,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
+          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
         ).get
 
         if (createVariable) {
           val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(Double.PositiveInfinity)
+          outputVariable.setLogPotential(maxLogPotential)
 
           val factor = factorGraph.createFactorOROUT(
             Array(leftVariable._1, rightVariable._1, outputVariable),
@@ -222,9 +289,32 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
         //        new FirstOrderNegation(constraint)
         None
       case c: ForAll[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
+        // ForAll is a conjunction
+        val processedConstraints = c.constraints.map({
+          cons =>
+            processConstraints(cons, instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true).get
+        })
+
+        val binaryVariables = processedConstraints.map(_._1).toArray
+        val isNegated = processedConstraints.toArray.map(ins => !ins._2)
+
+        val outputVariable = factorGraph.createBinaryVariable()
+        outputVariable.setLogPotential(maxLogPotential)
+
+        val factor = factorGraph.createFactorANDOUT(
+          binaryVariables :+ outputVariable,
+          isNegated :+ false,
+          true
+        )
+
+        factors += factor
+        variables += outputVariable
+
+        if (createVariable) {
+          Some((outputVariable, true))
+        } else {
+          None
+        }
       case c: AtLeast[_, _] =>
         logger.warn("Unsupported!")
         //        new FirstOrderConstant(true)
@@ -236,14 +326,6 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
       case c: Exactly[_, _] =>
         logger.warn("Unsupported!")
         //        new FirstOrderConstant(true)
-        None
-      case c: ConstraintCollections[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        //        c.constraints.foldRight(Set[Any]()) {
-        //          case (singleConstraint, ins) =>
-        //            ins union getInstancesInvolved(singleConstraint).asInstanceOf[Set[Any]]
-        //        }
         None
       case _ =>
         //        new FirstOrderConstant(true)
