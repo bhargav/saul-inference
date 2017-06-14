@@ -9,14 +9,14 @@ package edu.illinois.cs.cogcomp.saul.classifier.infer
 import java.util.Date
 
 import edu.illinois.cs.cogcomp.core.io.LineIO
-import edu.illinois.cs.cogcomp.lbjava.classify.TestDiscrete
+import edu.illinois.cs.cogcomp.lbjava.classify.{ ScoreSet, TestDiscrete }
 import edu.illinois.cs.cogcomp.saul.classifier._
 import edu.illinois.cs.cogcomp.saul.classifier.infer.solver._
 import edu.illinois.cs.cogcomp.saul.datamodel.edge.Edge
 import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
 import edu.illinois.cs.cogcomp.saul.util.Logging
 
-import scala.collection.{ Iterable, Seq }
+import scala.collection.{ Iterable, Seq, mutable }
 import scala.reflect.ClassTag
 
 abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
@@ -38,7 +38,7 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   // This should be lazy so that correct solverType is passed in.
   protected lazy val inferenceSolver: InferenceSolver[T, HEAD] = new ILPInferenceSolver[T, HEAD](solverType, optimizationType, onClassifier, useCaching)
 
-  def getClassSimpleNameForClassifier = this.getClass.getSimpleName
+  def getClassSimpleNameForClassifier: String = this.getClass.getSimpleName
 
   /** The function is used to filter the generated candidates from the head object; remember that the inference starts
     * from the head object. This function finds the objects of type [[T]] which are connected to the target object of
@@ -107,8 +107,41 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
     if (headInstance.isEmpty) {
       onClassifier.classifier.discreteValue(instance)
     } else {
-      build(headInstance.get, instance)
+      val finalAssignments = build(headInstance.get, instance)
+
+      val finalInstanceAssignment = finalAssignments.find(_.learner == onClassifier)
+        .flatMap(_.get(instance))
+        .map(_.highScoreValue())
+        .getOrElse({
+          logger.trace("Instance or Classifier not found by the inference solver!")
+          onClassifier.classifier.scores(instance).highScoreValue()
+        })
+
+      finalInstanceAssignment
     }
+  }
+
+  def apply(instances: Iterable[InstanceType]): Map[InstanceType, String] = {
+    val instanceLabelMap = new mutable.HashMap[InstanceType, String]()
+
+    instances.foreach({ instance =>
+      if (!instanceLabelMap.contains(instance)) {
+        val headInstance = findHead(instance)
+
+        if (headInstance.isEmpty) {
+          instanceLabelMap.put(instance, onClassifier.classifier.discreteValue(instance))
+        } else {
+          val assignments = build(headInstance.get, instance)
+          val finalAssignment = assignments.find(_.learner == onClassifier).get
+          finalAssignment.foreach({
+            case (scoredInstance: Any, scoreset: ScoreSet) =>
+              instanceLabelMap.put(scoredInstance.asInstanceOf[InstanceType], scoreset.highScoreValue())
+          })
+        }
+      }
+    })
+
+    instanceLabelMap.toMap
   }
 
   private def getClassifierAndInstancesInvolvedInProblem(constraintsOpt: Option[Constraint[_]]): Option[Set[(LBJLearnerEquivalent, _)]] = {
@@ -164,7 +197,7 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
     * @param instance
     * @return
     */
-  private def build(head: HEAD, instance: T): String = {
+  private def build(head: HEAD, instance: T): Seq[Assignment] = {
     val constraintsOpt = instantiateConstraintGivenInstance(head)
     val classifiersAndInstancesInvolved = getClassifierAndInstancesInvolvedInProblem(constraintsOpt)
 
@@ -192,24 +225,17 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
         })
       })
 
-      val finalAssignments = inferenceSolver.solve(
+      inferenceSolver.solve(
         constraintsOpt = constraintsOpt,
         priorAssignment = localAssignments.get.toSeq
       )
-
-      val finalInstanceAssignment = finalAssignments.find(_.learner == onClassifier)
-        .flatMap(_.get(instance))
-        .map(_.highScoreValue())
-        .getOrElse({
-          logger.trace("Instance or Classifier not found by the inference solver!")
-          onClassifier.classifier.scores(instance).highScoreValue()
-        })
-
-      finalInstanceAssignment
     } else {
       // if the instance doesn't involve in any constraints, it means that it's a simple non-constrained problem.
       logger.trace("getting the label with the highest score . . . ")
-      onClassifier.classifier.scores(instance).highScoreValue()
+
+      val assignment = Assignment(onClassifier)
+      assignment.put(instance, onClassifier.classifier.scores(instance))
+      Seq(assignment)
     }
   }
 
