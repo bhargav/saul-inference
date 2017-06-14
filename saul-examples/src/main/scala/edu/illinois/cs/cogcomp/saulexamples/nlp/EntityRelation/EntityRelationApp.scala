@@ -151,21 +151,28 @@ object EntityRelationApp extends Logging {
   }
 
   def testIndependentClassifiersCV(): Unit = {
-    val classifiers = Array(PersonClassifier, OrganizationClassifier, LocationClassifier,
+    val allClassifiers = Array(PersonClassifier, OrganizationClassifier, LocationClassifier,
       WorksForClassifier, LivesInClassifier, LocatedInClassifier, OrgBasedInClassifier)
+
+    val classifiersToTest = allClassifiers
 
     val allResults = getCrossValidationData(5)
       .flatMap({
         case (fold: Int, _: List[ConllRawSentence], testingSentences: List[ConllRawSentence]) =>
+
           EntityRelationDataModel.clearInstances()
           EntityRelationDataModel.sentences.populate(testingSentences, train = false)
 
-          classifiers.foreach(_.forget())
+          allClassifiers.foreach(_.forget())
 
-          classifiers.map({ clf =>
+          allClassifiers.foreach({ clf =>
             clf.modelSuffix = s"fold$fold"
             clf.load()
+          })
 
+          val startTime = System.nanoTime()
+
+          classifiersToTest.map({ clf =>
             val results = clf.node.getTestingInstances.map({ instance =>
               val label = clf.classifier.getLabeler.discreteValue(instance)
               val prediction = clf(instance)
@@ -173,18 +180,24 @@ object EntityRelationApp extends Logging {
               RawPrediction(label, prediction)
             })
 
-            (clf, fold, results)
+            (clf, fold, results, System.nanoTime() - startTime)
           })
       })
 
     allResults.groupBy(_._1).values.foreach({ singleClassifierResult =>
       val clf = singleClassifierResult.head._1.getClassSimpleNameForClassifier
-      singleClassifierResult.groupBy(_._2).foreach({
+      val combinedResult = singleClassifierResult.groupBy(_._2).flatMap({
         case (fold: Int, items) =>
           val rawPredictions = items.flatMap(_._3)
           val binaryResult = getBinaryPredictionResult(rawPredictions)
           logger.info(f"$clf // Fold: $fold // $binaryResult")
+          rawPredictions
       })
+
+      logger.info(f"$clf // ${getBinaryPredictionResult(combinedResult.toSeq)}")
+
+      val totalTime = singleClassifierResult.map(_._4).sum
+      logger.info(f"$clf // Time (in seconds) = ${totalTime * 1e-9}")
     })
   }
 
