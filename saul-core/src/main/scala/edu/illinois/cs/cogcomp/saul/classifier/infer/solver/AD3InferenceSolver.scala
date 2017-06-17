@@ -8,9 +8,9 @@ package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
 import edu.cmu.cs.ark.ad3.{ BinaryVariable, Factor, FactorGraph, MAPResult }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
-import edu.illinois.cs.cogcomp.lbjava.learn.Softmax
-import edu.illinois.cs.cogcomp.saul.classifier.infer._
-import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
+import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => LBJConstraint, _ }
+import edu.illinois.cs.cogcomp.lbjava.learn.{ Learner, Softmax }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 import edu.illinois.cs.cogcomp.saul.util.Logging
 
 import scala.collection.mutable
@@ -20,8 +20,8 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
 
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
-    val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[String]]()
-    val instanceVariableMap = new mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryVariable, Boolean)]()
+    val classifierLabelMap = new mutable.HashMap[Learner, List[String]]()
+    val instanceVariableMap = new mutable.HashMap[(Learner, String, Any), BinaryVariable]()
 
     val factorGraph = new FactorGraph()
 
@@ -30,7 +30,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
 
     priorAssignment.foreach({ assignment: Assignment =>
       val labels: List[String] = assignment.learner.classifier.scores(assignment.head._1).toArray.map(_.value).toList.sorted
-      classifierLabelMap += (assignment.learner -> labels)
+      classifierLabelMap += (assignment.learner.classifier -> labels)
 
       assignment.foreach({
         case (instance: Any, scores: ScoreSet) =>
@@ -47,17 +47,32 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
               val binaryVariable = multiVariable.getState(idx)
               variables += binaryVariable
 
-              instanceVariableMap += ((assignment.learner, label, instance) -> (binaryVariable, true))
+              instanceVariableMap += ((assignment.learner.classifier, label, instance) -> binaryVariable)
           })
       })
     })
 
-    if (constraintsOpt.nonEmpty)
-      processConstraints(constraintsOpt.get, instanceVariableMap, classifierLabelMap, factorGraph, factors, variables)
+    if (constraintsOpt.nonEmpty) {
+      val lbjConstraints = LBJavaILPInferenceSolver.transformToLBJConstraint(constraintsOpt.get, new mutable.HashSet[FirstOrderVariable]())
+
+      // Using the LBJava Constraint expressions to simplify First-Order Logic
+      val propositional = {
+        lbjConstraints match {
+          case propositionalConjunction: PropositionalConjunction => propositionalConjunction.simplify(true)
+          case _ => lbjConstraints.asInstanceOf[PropositionalConstraint].simplify()
+        }
+      }
+
+      processConstraints(
+        propositional,
+        instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, isTopLevel = true
+      )
+    }
 
     factorGraph.setVerbosity(0)
     factorGraph.fixMultiVariablesWithoutFactors()
 
+    // Solve Exact MAP problem using AD3
     val mapResult: MAPResult = factorGraph.solveExactMAPWithAD3()
 
     if (mapResult.status == 2) {
@@ -69,18 +84,16 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
     } else {
       val finalAssignments = priorAssignment.map({ assignment: Assignment =>
         val finalAssgn = Assignment(assignment.learner)
-        val domain = classifierLabelMap(assignment.learner)
+        val domain = classifierLabelMap(assignment.learner.classifier)
 
         assignment.foreach({
           case (instance: Any, _) =>
             val newScores = domain.map({
               case (label: String) =>
-                val variableTuple = instanceVariableMap((assignment.learner, label, instance))
-                val binaryVariable = variableTuple._1
-                val state = variableTuple._2
+                val binaryVariable = instanceVariableMap((assignment.learner.classifier, label, instance))
                 val posterior = mapResult.variablePosteriors(binaryVariable.getId)
 
-                new Score(label, if (state) posterior else 1.0 - posterior)
+                new Score(label, posterior)
             }).toArray
 
             finalAssgn += (instance -> new ScoreSet(newScores))
@@ -94,246 +107,174 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
   }
 
   private def processConstraints(
-    constraint: Constraint[_],
-    instanceVariableMap: mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryVariable, Boolean)],
-    classifierLabelMap: mutable.HashMap[LBJLearnerEquivalent, List[String]],
+    constraint: LBJConstraint,
+    instanceVariableMap: mutable.HashMap[(Learner, String, Any), BinaryVariable],
+    classifierLabelMap: mutable.HashMap[Learner, List[String]],
     factorGraph: FactorGraph,
     factors: mutable.ListBuffer[Factor],
     variables: mutable.ListBuffer[BinaryVariable],
-    createVariable: Boolean = false
+    isTopLevel: Boolean
   ): Option[(BinaryVariable, Boolean)] = {
+    if (isTopLevel && constraint.isInstanceOf[PropositionalConjunction]) {
+      val topLevelConstraint = constraint.asInstanceOf[PropositionalConjunction]
+      topLevelConstraint.getChildren
+        .foreach({ childConstraint: LBJConstraint =>
+          val variableWithState = processConstraints(
+            childConstraint,
+            instanceVariableMap,
+            classifierLabelMap,
+            factorGraph,
+            factors,
+            variables,
+            isTopLevel = true
+          )
+
+          if (childConstraint.isInstanceOf[PropositionalVariable] || childConstraint.isInstanceOf[PropositionalNegation]) {
+            // Free Variables in the top-level conjunction are treated as grounded variables.
+            assert(variableWithState.nonEmpty)
+            if (variableWithState.get._2) {
+              variableWithState.get._1.setLogPotential(maxLogPotential)
+            } else {
+              variableWithState.get._1.setLogPotential(-maxLogPotential)
+            }
+          }
+        })
+
+      return None
+    }
+
     constraint match {
-      case c: PropositionalEqualityConstraint[_] =>
-        val value = c.equalityValOpt.orElse(c.inequalityValOpt).get
-        val variableWithState = instanceVariableMap((c.estimator, value, c.instanceOpt.get))
-
-        // Handle negative variable states
-        val isEquality = c.equalityValOpt.nonEmpty == variableWithState._2
-
-        if (createVariable) {
-          Some((variableWithState._1, isEquality))
-        } else {
-          // If this constraint is not a top-level constraint, add a factor to force its value.
-          val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(maxLogPotential)
-
-          val factor = factorGraph.createFactorIMPLY(
-            Array(outputVariable, variableWithState._1),
-            Array(false, !isEquality),
-            true
-          )
-          factors += factor
-          variables += outputVariable
-
-          None
-        }
-
-      case c: InstancePairEqualityConstraint[_] =>
-        val isEquality = c.equalsOpt.get
-        val labels = classifierLabelMap(c.estimator)
-        val firstVariables = labels.map({ label =>
-          instanceVariableMap((c.estimator, label, c.instance1))
-        })
-        val secondVariables = labels.map({ label =>
-          instanceVariableMap((c.estimator, label, c.instance2Opt.get))
-        })
-
-        if (createVariable) {
-          val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(maxLogPotential)
-
-          firstVariables.zip(secondVariables)
-            .foreach({
-              case ((firstVar: BinaryVariable, firstState: Boolean), (secondVar: BinaryVariable, secondState: Boolean)) =>
-                val firstNegatedState = if (isEquality) firstState else !firstState
-                val secondNegatedState = !secondState
-                factors += factorGraph.createFactorXOROUT(
-                  Array(firstVar, secondVar, outputVariable),
-                  Array(firstNegatedState, secondNegatedState, false),
-                  true
-                )
-            })
-
-          variables += outputVariable
-
-          Some((outputVariable, true))
-        } else {
-          firstVariables.zip(secondVariables)
-            .foreach({
-              case ((firstVar: BinaryVariable, firstState: Boolean), (secondVar: BinaryVariable, secondState: Boolean)) =>
-                val firstNegatedState = if (isEquality) firstState else !firstState
-                val secondNegatedState = !secondState
-                factors += factorGraph.createFactorXOR(
-                  Array(firstVar, secondVar),
-                  Array(firstNegatedState, secondNegatedState),
-                  true
-                )
-            })
-
-          None
-        }
-
-      //      case c: EstimatorPairEqualityConstraint[_] =>
-
-      case c: PairConjunction[_, _] =>
-        val leftVariable = processConstraints(
-          c.c1,
-          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.c2,
-          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
-        ).get
-
-        if (createVariable) {
-          val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(maxLogPotential)
-
-          val factor = factorGraph.createFactorANDOUT(
-            Array(leftVariable._1, rightVariable._1, outputVariable),
-            Array(!leftVariable._2, !rightVariable._2, false),
-            true
-          )
-
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
-        } else {
-          val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(maxLogPotential)
-
-          val factor = factorGraph.createFactorANDOUT(
-            Array(leftVariable._1, rightVariable._1, outputVariable),
-            Array(!leftVariable._2, !rightVariable._2, false),
-            true
-          )
-
-          factors += factor
-          None
-        }
-      case c: PairDisjunction[_, _] =>
-        val leftVariable = processConstraints(
-          c.c1,
-          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.c2,
-          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
-        ).get
-
-        if (createVariable) {
-          val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(maxLogPotential)
-
-          // Handle negation etc.
-          val factor = factorGraph.createFactorOROUT(
-            Array(leftVariable._1, rightVariable._1, outputVariable),
-            Array(!leftVariable._2, !rightVariable._2, false),
-            true
-          )
-
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
-        } else {
-          // Handle negation etc.
-          val factor = factorGraph.createFactorOR(
-            Array(leftVariable._1, rightVariable._1),
-            Array(!leftVariable._2, !rightVariable._2),
-            true
-          )
-
-          factors += factor
-          None
-        }
-      case c: Implication[_, _] =>
-        val leftVariable = processConstraints(
-          c.p.negate,
-          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.q,
-          instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true
-        ).get
-
-        if (createVariable) {
-          val outputVariable = factorGraph.createBinaryVariable()
-          outputVariable.setLogPotential(maxLogPotential)
-
-          val factor = factorGraph.createFactorOROUT(
-            Array(leftVariable._1, rightVariable._1, outputVariable),
-            Array(!leftVariable._2, !rightVariable._2, false),
-            true
-          )
-
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
-        } else {
-          val factor = factorGraph.createFactorOR(
-            Array(leftVariable._1, rightVariable._1),
-            Array(!leftVariable._2, !rightVariable._2),
-            true
-          )
-
-          factors += factor
-          None
-        }
-      case c: Negation[_] =>
-        //        val constraint = transformToLBJConstraint(c.p)
-        logger.warn("Unsupported!")
-        // Verify this once.
-        //        new FirstOrderNegation(constraint)
+      case c: PropositionalConstant =>
+        // Nothing to do if the constraint is a constant
+        // Ideally there should not be any constants
+        logger.info("Processing PropositionalConstant - No Operation")
         None
-      case c: ForAll[_, _] =>
-        // ForAll is a conjunction
-        val processedConstraints = c.constraints.map({
-          cons =>
-            processConstraints(cons, instanceVariableMap, classifierLabelMap, factorGraph, factors, variables, createVariable = true).get
+      case c: PropositionalVariable =>
+        logger.debug("Processing PropositionalVariable")
+        val binaryVariable = instanceVariableMap((c.getClassifier, c.getPrediction, c.getExample))
+        Some((binaryVariable, true))
+      case c: PropositionalConjunction =>
+        logger.debug("Processing PropositionalConjunction")
+        val variablesWithStates = c.getChildren.map({ childConstraint: LBJConstraint =>
+          // Should return variables with states.
+          processConstraints(
+            childConstraint,
+            instanceVariableMap,
+            classifierLabelMap,
+            factorGraph,
+            factors,
+            variables,
+            isTopLevel = false
+          ).get
         })
-
-        val binaryVariables = processedConstraints.map(_._1).toArray
-        val isNegated = processedConstraints.toArray.map(ins => !ins._2)
 
         val outputVariable = factorGraph.createBinaryVariable()
-        outputVariable.setLogPotential(maxLogPotential)
 
         val factor = factorGraph.createFactorANDOUT(
-          binaryVariables :+ outputVariable,
-          isNegated :+ false,
+          variablesWithStates.map(_._1) :+ outputVariable,
+          variablesWithStates.map(!_._2) :+ false,
           true
         )
 
         factors += factor
         variables += outputVariable
 
-        if (createVariable) {
-          Some((outputVariable, true))
+        if (isTopLevel) {
+          outputVariable.setLogPotential(maxLogPotential)
+          None
         } else {
+          Some((outputVariable, true))
+        }
+      case c: PropositionalDisjunction =>
+        logger.debug("Processing PropositionalDisjunction")
+        val variablesWithStates = c.getChildren.map({ childConstraint: LBJConstraint =>
+          // Should return variables with states.
+          processConstraints(
+            childConstraint,
+            instanceVariableMap,
+            classifierLabelMap,
+            factorGraph,
+            factors,
+            variables,
+            isTopLevel = false
+          ).get
+        })
+
+        if (isTopLevel) {
+          val factor = factorGraph.createFactorOR(
+            variablesWithStates.map(_._1),
+            variablesWithStates.map(!_._2),
+            true
+          )
+
+          factors += factor
+          None
+        } else {
+          val outputVariable = factorGraph.createBinaryVariable()
+
+          val factor = factorGraph.createFactorOROUT(
+            variablesWithStates.map(_._1) :+ outputVariable,
+            variablesWithStates.map(!_._2) :+ false,
+            true
+          )
+
+          factors += factor
+          variables += outputVariable
+
+          Some((outputVariable, true))
+        }
+
+      case c: PropositionalNegation =>
+        logger.debug("Processing PropositionalNegation")
+
+        val childConstraints = c.getChildren
+        if (childConstraints.length == 1 && childConstraints.head.isInstanceOf[PropositionalVariable]) {
+          val childVariable = childConstraints.head.asInstanceOf[PropositionalVariable]
+          val binaryVariable = instanceVariableMap((childVariable.getClassifier, childVariable.getPrediction, childVariable.getExample))
+          Some((binaryVariable, false))
+        } else {
+          logger.error("This constraint should already be processed")
           None
         }
-      case c: AtLeast[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
+      case c: PropositionalAtLeast =>
+        logger.debug("Processing PropositionalAtLeast")
+        if (isTopLevel) {
+          val variablesWithStates = c.getChildren
+            .map({ childConstraint: LBJConstraint =>
+              processConstraints(
+                childConstraint,
+                instanceVariableMap,
+                classifierLabelMap,
+                factorGraph,
+                factors,
+                variables,
+                isTopLevel = false
+              ).get
+            })
+
+          val total = variablesWithStates.length
+
+          val factor = factorGraph.createFactorBUDGET(
+            variablesWithStates.map(_._1),
+            variablesWithStates.map(_._2),
+            totalItems - c.getM,
+            true
+          )
+
+          factors += factor
+        } else {
+          logger.error("Not supported yet.")
+        }
         None
-      case c: AtMost[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
+      case c: PropositionalImplication =>
+        logger.info("Processing PropositionalImplication")
+        logger.error("This constraint should already be processed")
         None
-      case c: Exactly[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
+      case c: PropositionalDoubleImplication =>
+        logger.info("Processing PropositionalDoubleImplication")
+        logger.error("This constraint should already be processed")
         None
       case _ =>
-        //        new FirstOrderConstant(true)
-        //      case c: EstimatorPairEqualityConstraint[_] =>
-        //        Set(c.instance)
-        //      case c: InstancePairEqualityConstraint[_] =>
-        //        Set(c.instance1, c.instance2Opt.get)
-        //      case _ =>
         throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
   }

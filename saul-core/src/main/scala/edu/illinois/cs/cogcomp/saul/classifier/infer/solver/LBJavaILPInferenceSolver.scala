@@ -21,7 +21,7 @@ class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverType: SolverTy
     val solverHookInstance = ILPInferenceSolver.getSolverInstance(solverType)
     val inference = new LBJavaPropositionalILPInference(solverHookInstance)
     val variableBuffer = mutable.HashSet[FirstOrderVariable]()
-    val lbjConstraints = transformToLBJConstraint(constraintsOpt.get, variableBuffer)
+    val lbjConstraints = LBJavaILPInferenceSolver.transformToLBJConstraint(constraintsOpt.get, variableBuffer)
 
     inference.addConstraint(lbjConstraints, variableBuffer.toSeq)
     inference.infer()
@@ -50,7 +50,10 @@ class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverType: SolverTy
     finalAssignment
   }
 
-  private def transformToLBJConstraint(constraint: SaulConstraint[_], variableSet: mutable.HashSet[FirstOrderVariable]): LBJPropositionalConstraint = {
+}
+
+object LBJavaILPInferenceSolver extends Logging {
+  def transformToLBJConstraint(constraint: SaulConstraint[_], variableSet: mutable.HashSet[FirstOrderVariable]): LBJPropositionalConstraint = {
     constraint match {
       case c: PropositionalEqualityConstraint[_] =>
         val variable = new FirstOrderVariable(c.estimator.classifier, c.instanceOpt.get)
@@ -139,5 +142,4 @@ class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverType: SolverTy
         throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
   }
-
 }
