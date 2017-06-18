@@ -115,34 +115,6 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
     variables: mutable.ListBuffer[BinaryVariable],
     isTopLevel: Boolean
   ): Option[(BinaryVariable, Boolean)] = {
-    if (isTopLevel && constraint.isInstanceOf[PropositionalConjunction]) {
-      val topLevelConstraint = constraint.asInstanceOf[PropositionalConjunction]
-      topLevelConstraint.getChildren
-        .foreach({ childConstraint: LBJConstraint =>
-          val variableWithState = processConstraints(
-            childConstraint,
-            instanceVariableMap,
-            classifierLabelMap,
-            factorGraph,
-            factors,
-            variables,
-            isTopLevel = true
-          )
-
-          if (childConstraint.isInstanceOf[PropositionalVariable] || childConstraint.isInstanceOf[PropositionalNegation]) {
-            // Free Variables in the top-level conjunction are treated as grounded variables.
-            assert(variableWithState.nonEmpty)
-            if (variableWithState.get._2) {
-              variableWithState.get._1.setLogPotential(maxLogPotential)
-            } else {
-              variableWithState.get._1.setLogPotential(-maxLogPotential)
-            }
-          }
-        })
-
-      return None
-    }
-
     constraint match {
       case c: PropositionalConstant =>
         // Nothing to do if the constraint is a constant
@@ -152,11 +124,17 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
       case c: PropositionalVariable =>
         logger.debug("Processing PropositionalVariable")
         val binaryVariable = instanceVariableMap((c.getClassifier, c.getPrediction, c.getExample))
+
+        if (isTopLevel) {
+          // Free Variables in the top-level conjunction are treated as grounded variables.
+          binaryVariable.setLogPotential(maxLogPotential)
+        }
+
         Some((binaryVariable, true))
       case c: PropositionalConjunction =>
         logger.debug("Processing PropositionalConjunction")
-        val variablesWithStates = c.getChildren.map({ childConstraint: LBJConstraint =>
-          // Should return variables with states.
+        val variablesWithStates = c.getChildren.flatMap({ childConstraint: LBJConstraint =>
+          // Should return variables with states if this is not a top-level conjunction.
           processConstraints(
             childConstraint,
             instanceVariableMap,
@@ -164,25 +142,24 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
             factorGraph,
             factors,
             variables,
-            isTopLevel = false
-          ).get
+            isTopLevel = isTopLevel
+          )
         })
 
-        val outputVariable = factorGraph.createBinaryVariable()
-
-        val factor = factorGraph.createFactorANDOUT(
-          variablesWithStates.map(_._1) :+ outputVariable,
-          variablesWithStates.map(!_._2) :+ false,
-          true
-        )
-
-        factors += factor
-        variables += outputVariable
-
         if (isTopLevel) {
-          outputVariable.setLogPotential(maxLogPotential)
+          // Top-Level conjunction does not need to be enforced with a factor.
           None
         } else {
+          val outputVariable = factorGraph.createBinaryVariable()
+          val factor = factorGraph.createFactorANDOUT(
+            variablesWithStates.map(_._1) :+ outputVariable,
+            variablesWithStates.map(!_._2) :+ false,
+            true
+          )
+
+          factors += factor
+          variables += outputVariable
+
           Some((outputVariable, true))
         }
       case c: PropositionalDisjunction =>
@@ -231,6 +208,12 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
         if (childConstraints.length == 1 && childConstraints.head.isInstanceOf[PropositionalVariable]) {
           val childVariable = childConstraints.head.asInstanceOf[PropositionalVariable]
           val binaryVariable = instanceVariableMap((childVariable.getClassifier, childVariable.getPrediction, childVariable.getExample))
+
+          if (isTopLevel) {
+            // Free Variables in the top-level conjunction are treated as grounded variables.
+            binaryVariable.setLogPotential(-maxLogPotential)
+          }
+
           Some((binaryVariable, false))
         } else {
           logger.error("This constraint should already be processed")
@@ -252,12 +235,13 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
               ).get
             })
 
-          val total = variablesWithStates.length
+          val totalConstraints = variablesWithStates.length
 
+          // Budget factor evaluates as <= budget
           val factor = factorGraph.createFactorBUDGET(
             variablesWithStates.map(_._1),
             variablesWithStates.map(_._2),
-            totalItems - c.getM,
+            totalConstraints - c.getM,
             true
           )
 
