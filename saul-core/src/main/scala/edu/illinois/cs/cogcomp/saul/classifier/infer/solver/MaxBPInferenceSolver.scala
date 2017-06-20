@@ -10,10 +10,10 @@ import cc.factorie.DenseTensor1
 import cc.factorie.infer._
 import cc.factorie.model.{ DotTemplateWithStatistics1, Factor, ItemizedModel, Parameters }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
-import edu.illinois.cs.cogcomp.lbjava.learn.Softmax
-import edu.illinois.cs.cogcomp.saul.classifier.infer._
+import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => LBJConstraint, _ }
+import edu.illinois.cs.cogcomp.lbjava.learn.{ Learner, Softmax }
+import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 import edu.illinois.cs.cogcomp.saul.classifier.infer.factorgraph.{ BinaryRandomVariable, FactorUtils }
-import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
 import edu.illinois.cs.cogcomp.saul.util.Logging
 
 import scala.collection.mutable
@@ -21,8 +21,8 @@ import scala.collection.mutable
 final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
-    val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[(String, Boolean)]]()
-    val instanceVariableMap = new mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryRandomVariable, Boolean)]()
+    val classifierLabelMap = new mutable.HashMap[Learner, List[(String, Boolean)]]()
+    val instanceVariableMap = new mutable.HashMap[(Learner, String, Any), (BinaryRandomVariable, Boolean)]()
 
     val factors = new mutable.ListBuffer[Factor]()
     val variables = new mutable.ListBuffer[BinaryRandomVariable]()
@@ -40,7 +40,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
         labels.zip(Array.fill(labels.size)(true))
       }
 
-      classifierLabelMap += (assignment.learner -> labelIndexMap)
+      classifierLabelMap += (assignment.learner.classifier -> labelIndexMap)
 
       assignment.foreach({
         case (instance: Any, scores: ScoreSet) =>
@@ -55,13 +55,13 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
               case (label: String, state: Boolean) =>
                 val idx = if (state) 1 else 0
                 family.weights.value(idx) = math.log(normalizedScoreset.getScore(label).score)
-                instanceVariableMap += ((assignment.learner, label, instance) -> (binaryVariable, state))
+                instanceVariableMap += ((assignment.learner.classifier, label, instance) -> (binaryVariable, state))
             })
 
             factors += family.Factor(binaryVariable)
             variables += binaryVariable
           } else {
-            val binaryVariables = labels.map({ label: String =>
+            labels.map({ label: String =>
 
               /* Normalized Probability Scores */
               val score = normalizedScoreset.getScore(label).score
@@ -69,7 +69,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
               family.weights.value(0) = math.log(1 - score)
 
               val binaryVariable = new BinaryRandomVariable(score >= 0.5, classifier = s"${assignment.learner.classifier.name}_$label")
-              instanceVariableMap += ((assignment.learner, label, instance) -> (binaryVariable, true))
+              instanceVariableMap += ((assignment.learner.classifier, label, instance) -> (binaryVariable, true))
 
               factors ++= family.Factor(binaryVariable)
               variables += binaryVariable
@@ -77,14 +77,25 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
               binaryVariable
             })
 
-            //          binaryVariables needs an ExactlyOne factor
-            logger.warn("Unsuppported!")
+            // XXX - binaryVariables needs an ExactlyOne factor
+            logger.error("Unsuppported!")
           }
       })
     })
 
-    if (constraintsOpt.nonEmpty)
-      processConstraints(constraintsOpt.get, instanceVariableMap, factors, variables)
+    if (constraintsOpt.nonEmpty) {
+      val lbjConstraints = LBJavaILPInferenceSolver.transformToLBJConstraint(constraintsOpt.get, new mutable.HashSet[FirstOrderVariable]())
+
+      // Using the LBJava Constraint expressions to simplify First-Order Logic
+      val propositional = {
+        lbjConstraints match {
+          case propositionalConjunction: PropositionalConjunction => propositionalConjunction.simplify(true)
+          case _ => lbjConstraints.asInstanceOf[PropositionalConstraint].simplify()
+        }
+      }
+
+      processConstraints(propositional, instanceVariableMap, factors, variables, isTopLevel = true)
+    }
 
     val model = new ItemizedModel(factors)
     val loopyMaxSummary = LoopyBPSummaryMaxProduct(variables, BPMaxProductRing, model)
@@ -94,18 +105,19 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
     val fg = new MAPSummary(assignment, loopyMaxSummary.factors.get.toVector)
 
     if (factors.exists(_.assignmentScore(fg.mapAssignment) == Double.NegativeInfinity)) {
-      println("Unsatisfied Factors exist.")
+      logger.error("Unsatisfied Factors exist. Using local assignments!")
+      return priorAssignment
     }
 
     val finalAssignments = priorAssignment.map({ assignment: Assignment =>
       val finalAssgn = Assignment(assignment.learner)
-      val domain = classifierLabelMap(assignment.learner)
+      val domain = classifierLabelMap(assignment.learner.classifier)
 
       assignment.foreach({
         case (instance: Any, _) =>
           val newScores = domain.map({
             case (label: String, _) =>
-              val variable = instanceVariableMap((assignment.learner, label, instance))
+              val variable = instanceVariableMap((assignment.learner.classifier, label, instance))
               val mapAssignment = if (fg.mapAssignment(variable._1).category == variable._2) 1.0 else 0.0
               new Score(label, mapAssignment)
           }).toArray
@@ -120,136 +132,171 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
   }
 
   private def processConstraints(
-    constraint: Constraint[_],
-    instanceVariableMap: mutable.HashMap[(LBJLearnerEquivalent, String, Any), (BinaryRandomVariable, Boolean)],
+    constraint: LBJConstraint,
+    instanceVariableMap: mutable.HashMap[(Learner, String, Any), (BinaryRandomVariable, Boolean)],
     factors: mutable.ListBuffer[Factor],
     variables: mutable.ListBuffer[BinaryRandomVariable],
-    createVariable: Boolean = false
+    isTopLevel: Boolean
   ): Option[(BinaryRandomVariable, Boolean)] = {
     constraint match {
-      case c: PropositionalEqualityConstraint[_] =>
-        val value = c.equalityValOpt.orElse(c.inequalityValOpt).get
-        val variableWithState = instanceVariableMap((c.estimator, value, c.instanceOpt.get))
+      case c: PropositionalConstant =>
+        // Nothing to do if the constraint is a constant
+        // Ideally there should not be any constants
+        logger.info("Processing PropositionalConstant - No Operation")
+        None
+      case c: PropositionalVariable =>
+        logger.debug("Processing PropositionalVariable")
+        val binaryVariable = instanceVariableMap((c.getClassifier, c.getPrediction, c.getExample))
 
-        // Handle negative variable states
-        val isEquality = c.equalityValOpt.nonEmpty == variableWithState._2
+        if (isTopLevel) {
+          // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
+          // binaryVariable.setLogPotential(maxLogPotential)
+        }
 
-        Some((variableWithState._1, isEquality))
-      case c: PairConjunction[_, _] =>
-        val leftVariable = processConstraints(
-          c.c1,
-          instanceVariableMap, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.c2,
-          instanceVariableMap, factors, variables, createVariable = true
-        ).get
+        // XXX - Verify this.
+        Some(binaryVariable)
+      case c: PropositionalConjunction =>
+        logger.debug("Processing PropositionalConjunction")
+        val variablesWithStates = c.getChildren.flatMap({ childConstraint: LBJConstraint =>
+          // Should return variables with states if this is not a top-level conjunction.
+          processConstraints(
+            childConstraint,
+            instanceVariableMap,
+            factors,
+            variables,
+            isTopLevel = isTopLevel
+          )
+        })
 
-        if (createVariable) {
-          val outputVariable = new BinaryRandomVariable(true)
-
-          // Handle negation etc.
-          val factor = FactorUtils.getPairConjunctionFactor(leftVariable, rightVariable, Some((outputVariable, true)))
-
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
+        if (isTopLevel) {
+          // Top-Level conjunction does not need to be enforced with a factor.
+          None
         } else {
-          // Handle negation etc.
-          val factor = FactorUtils.getPairConjunctionFactor(leftVariable, rightVariable)
-          factors += factor
+          //          logger.info("Non-toplevel conjunction")
+          val firstPairOutput = variablesWithStates.head
+
+          val outputVariableWithState = variablesWithStates.tail
+            .foldLeft(firstPairOutput)({
+              case (computedVariableWithState, currentVariableWithState) =>
+                val intermediateVariable = new BinaryRandomVariable(true)
+                val factor = FactorUtils.getPairConjunctionFactor(
+                  computedVariableWithState,
+                  currentVariableWithState,
+                  Some((intermediateVariable, true))
+                )
+
+                factors += factor
+                variables += intermediateVariable
+
+                (intermediateVariable, true)
+            })
+
+          Some(outputVariableWithState)
+        }
+      case c: PropositionalDisjunction =>
+        logger.debug("Processing PropositionalDisjunction")
+        val variablesWithStates = c.getChildren.map({ childConstraint: LBJConstraint =>
+          // Should return variables with states.
+          processConstraints(
+            childConstraint,
+            instanceVariableMap,
+            factors,
+            variables,
+            isTopLevel = false
+          ).get
+        })
+
+        if (variablesWithStates.length == 1) {
+          variablesWithStates.headOption
+        } else {
+          val firstPairOutput = variablesWithStates.head
+          val outputVariableWithState = variablesWithStates.tail
+            .foldLeft(firstPairOutput)({
+              case (computedVariableWithState, currentVariableWithState) =>
+                val intermediateVariable = new BinaryRandomVariable(true)
+                val factor = FactorUtils.getPairDisjunctionFactor(
+                  computedVariableWithState,
+                  currentVariableWithState,
+                  Some((intermediateVariable, true))
+                )
+
+                factors += factor
+                variables += intermediateVariable
+
+                (intermediateVariable, true)
+            })
+
+          if (isTopLevel) {
+            // XXX - Set the final output variable to true
+          } else {
+            // logger.info("Non-toplevel disjunction")
+          }
+
+          Some(outputVariableWithState)
+        }
+
+      case c: PropositionalNegation =>
+        logger.debug("Processing PropositionalNegation")
+
+        val childConstraints = c.getChildren
+        if (childConstraints.length == 1 && childConstraints.head.isInstanceOf[PropositionalVariable]) {
+          val childVariable = childConstraints.head.asInstanceOf[PropositionalVariable]
+          val binaryVariable = instanceVariableMap((childVariable.getClassifier, childVariable.getPrediction, childVariable.getExample))
+
+          if (isTopLevel) {
+            // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
+            // binaryVariable.setLogPotential(-maxLogPotential)
+          }
+
+          // XXX - Verify this
+          Some((binaryVariable._1, !binaryVariable._2))
+        } else {
+          logger.error("This constraint should already be processed")
           None
         }
-      case c: PairDisjunction[_, _] =>
-        val leftVariable = processConstraints(
-          c.c1,
-          instanceVariableMap, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.c2,
-          instanceVariableMap, factors, variables, createVariable = true
-        ).get
+      case c: PropositionalAtLeast =>
+        logger.debug("Processing PropositionalAtLeast")
 
-        if (createVariable) {
-          val outputVariable = new BinaryRandomVariable(true)
+        //        if (isTopLevel) {
+        val variablesWithStates = c.getChildren
+          .map({ childConstraint: LBJConstraint =>
+            processConstraints(
+              childConstraint,
+              instanceVariableMap,
+              factors,
+              variables,
+              isTopLevel = false
+            ).get
+          })
 
-          // Handle negation etc.
-          val factor = FactorUtils.getPairDisjunctionFactor(leftVariable, rightVariable, Some((outputVariable, true)))
+        val totalConstraints = variablesWithStates.length
+        println(totalConstraints)
+        //        }
 
-          factors += factor
-          variables += outputVariable
+        logger.error("PropositionalAtLeast - Not supported yet.")
 
-          Some((outputVariable, true))
-        } else {
-          // Handle negation etc.
-          val factor = FactorUtils.getPairDisjunctionFactor(leftVariable, rightVariable)
-          factors += factor
-          None
-        }
-      case c: Implication[_, _] =>
-        val leftVariable = processConstraints(
-          c.p.negate,
-          instanceVariableMap, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.q,
-          instanceVariableMap, factors, variables, createVariable = true
-        ).get
-
-        if (createVariable) {
-          val outputVariable = new BinaryRandomVariable(true)
-
-          // Handle negation etc.
-          val factor = FactorUtils.getPairDisjunctionFactor(leftVariable, rightVariable, Some(outputVariable, true))
-
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
-        } else {
-          // Handle negation etc.
-          val factor = FactorUtils.getPairDisjunctionFactor(leftVariable, rightVariable)
-          factors += factor
-          None
-        }
-      case c: Negation[_] =>
-        //        val constraint = transformToLBJConstraint(c.p)
-        logger.warn("Unsupported!")
-        // Verify this once.
-        //        new FirstOrderNegation(constraint)
-        None
-      case c: ForAll[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: AtLeast[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: AtMost[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: Exactly[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: ConstraintCollections[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        //        c.constraints.foldRight(Set[Any]()) {
-        //          case (singleConstraint, ins) =>
-        //            ins union getInstancesInvolved(singleConstraint).asInstanceOf[Set[Any]]
+        //          // Budget factor evaluates as <= budget
+        //          val factor = factorGraph.createFactorBUDGET(
+        //            variablesWithStates.map(_._1),
+        //            variablesWithStates.map(_._2),
+        //            totalConstraints - c.getM,
+        //            true
+        //          )
+        //
+        //          factors += factor
+        //        } else {
+        //
         //        }
         None
+      case c: PropositionalImplication =>
+        logger.info("Processing PropositionalImplication")
+        logger.error("PropositionalImplication - This constraint should already be processed")
+        None
+      case c: PropositionalDoubleImplication =>
+        logger.info("Processing PropositionalDoubleImplication")
+        logger.error("PropositionalDoubleImplication - This constraint should already be processed")
+        None
       case _ =>
-        //        new FirstOrderConstant(true)
-        //      case c: EstimatorPairEqualityConstraint[_] =>
-        //        Set(c.instance)
-        //      case c: InstancePairEqualityConstraint[_] =>
-        //        Set(c.instance1, c.instance2Opt.get)
-        //      case _ =>
         throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
   }
