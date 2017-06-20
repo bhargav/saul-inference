@@ -121,10 +121,14 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
     }
   }
 
-  def apply(instances: Iterable[InstanceType]): Map[InstanceType, String] = {
+  def apply(instances: Iterable[InstanceType], progressPeriod: Int = 0): Map[InstanceType, String] = {
     val instanceLabelMap = new mutable.HashMap[InstanceType, String]()
 
-    instances.foreach({ instance =>
+    instances.zipWithIndex.foreach({ case (instance, idx) =>
+      if (progressPeriod > 0 && idx % progressPeriod == 0) {
+        logger.info(s"Processed $idx instances.")
+      }
+
       if (!instanceLabelMap.contains(instance)) {
         val headInstance = findHead(instance)
 
@@ -260,20 +264,18 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
     val testReader = if (testData == null) deriveTestInstances else testData
     val tester = new TestDiscrete()
     if (exclude.nonEmpty) tester.addNull(exclude)
-    testReader.zipWithIndex.foreach {
-      case (instance, idx) =>
-        val gold = onClassifier.getLabeler.discreteValue(instance)
-        val prediction = apply(instance)
-        tester.reportPrediction(prediction, gold)
 
-        if (outputGranularity > 0 && idx % outputGranularity == 0) {
-          println(idx + " examples tested at " + new Date())
-        }
+    val predictions = apply(testReader, outputGranularity)
+
+    predictions.foreach {
+      case (instance, prediction) =>
+        val gold = onClassifier.getLabeler.discreteValue(instance)
+        tester.reportPrediction(prediction, gold)
 
         // Append the predictions to a file (if the outFile parameter is given)
         if (outFile != null) {
           try {
-            val line = "Example " + idx + "\tprediction:\t" + prediction + "\t gold:\t" + gold + "\t" + (if (gold.equals(prediction)) "correct" else "incorrect")
+            val line = "Example " + instance + "\tprediction:\t" + prediction + "\t gold:\t" + gold + "\t" + (if (gold.equals(prediction)) "correct" else "incorrect")
             LineIO.append(outFile, line);
           } catch {
             case e: Exception => e.printStackTrace()
