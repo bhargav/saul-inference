@@ -50,14 +50,14 @@ object SRLscalaConfigurator {
   val SRL_GOLD_PREDICATES = true
 
   // Whether to use gold argument boundaries (if FALSE, argumentXuIdentifierGivenApredicate will be used instead)
-  val SRL_GOLD_ARG_BOUNDARIES = true
+  val SRL_GOLD_ARG_BOUNDARIES = false
 
   /*Testing parameters*/
 
   // Should we use the pipeline during testing
-  val SRL_TEST_PIPELINE = false
+  val SRL_TEST_PIPELINE = true
   // Should we use constraints during testing
-  val SRL_TEST_CONSTRAINTS = false
+  val SRL_TEST_CONSTRAINTS = true
 
   /*Training parameters*/
 
@@ -66,7 +66,7 @@ object SRLscalaConfigurator {
   // Should we train an argument identifier given the XuPalmer argument candidates
   val SRL_TRAIN_ARG_IDENTIFIERS = false
   // Should we train an argument type classifier
-  val SRL_TRAIN_ARG_TYPE = true
+  val SRL_TRAIN_ARG_TYPE = false
 
 }
 
@@ -200,7 +200,7 @@ object RunningApps extends App with Logging {
 
       case (true, true) =>
         ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_bTr/", argumentXuIdentifierGivenApredicate)
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_aTr/", argumentTypeLearner)
+        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_cTr/", argumentTypeLearner)
         argumentTypeLearner.test(
           prediction = typeArgumentPipeGivenGoldPredicateConstrained,
           groundTruth = argumentLabelGold, exclude = "candidate"
@@ -215,7 +215,7 @@ object RunningApps extends App with Logging {
         )
 
       case (false, true) =>
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_aTr/", argumentTypeLearner)
+        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_cTr/", argumentTypeLearner)
         ArgTypeConstrainedClassifier.test(outputGranularity = 100, exclude = "candidate")
 
       case (false, false) =>

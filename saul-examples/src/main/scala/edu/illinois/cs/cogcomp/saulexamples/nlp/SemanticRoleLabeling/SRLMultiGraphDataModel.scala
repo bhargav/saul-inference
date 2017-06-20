@@ -231,11 +231,12 @@ class SRLMultiGraphDataModel(parseViewName: String = null, frameManager: SRLFram
   }
   val typeArgumentPipeGivenGoldPredicate = property(relations) {
     x: Relation =>
-      val a: String = argumentXuIdentifierGivenApredicate(x) match {
-        case "false" => "candidate"
-        case _ => argumentTypeLearner(x)
-      }
-      a
+      //      val a: String = argumentXuIdentifierGivenApredicate(x) match {
+      //        case "false" => "candidate"
+      //        case _ => argumentTypeLearner(x)
+      //      }
+      //      a
+      argumentTypeLearner(x)
   }
   val typeArgumentPipeGivenGoldPredicateConstrained = property(relations) {
     x: Relation =>

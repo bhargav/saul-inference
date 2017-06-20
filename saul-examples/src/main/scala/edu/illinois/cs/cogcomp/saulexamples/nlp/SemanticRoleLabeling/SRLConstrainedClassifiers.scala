@@ -16,7 +16,7 @@ object SRLConstrainedClassifiers {
   import SRLApps.srlDataModelObject._
 
   object ArgTypeConstrainedClassifier extends ConstrainedClassifier[Relation, TextAnnotation] {
-    override def subjectTo = Some(allPredicateArgumentConstraints)
+    override def subjectTo = Some(argumentTypeConstraints)
     override def solverType = Gurobi
     override lazy val onClassifier = argumentTypeLearner
     override val pathToHead = Some(-sentencesToRelations)
