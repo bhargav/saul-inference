@@ -149,8 +149,9 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
 
     SRLConstrainedClassifiers.ArgTypeConstrainedClassifier(finalRelationList)
       .filter(_._2 == "candidate")
-      .map({ case (relation: Relation, label: String) =>
-        SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, getViewName)
+      .map({
+        case (relation: Relation, label: String) =>
+          SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, getViewName)
       })
   }
 }
