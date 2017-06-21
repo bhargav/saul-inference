@@ -268,7 +268,6 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
               isTopLevel = false
             ).get
           })
-
         val totalConstraints = variablesWithStates.length
         println(totalConstraints)
         //        }

@@ -7,20 +7,22 @@
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
-import edu.illinois.cs.cogcomp.lbjava.learn.Softmax
-import edu.illinois.cs.cogcomp.saul.classifier.infer._
+import edu.illinois.cs.cogcomp.lbjava.learn.{ Learner, Softmax }
+import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => LBJConstraint, _ }
+
+import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 import edu.illinois.cs.cogcomp.saul.classifier.infer.factorgraph.SRMPFactorUtils
-import edu.illinois.cs.cogcomp.saul.lbjrelated.LBJLearnerEquivalent
 import edu.illinois.cs.cogcomp.saul.util.Logging
-import srmp.{ EnergyOptions, Factor, FactorType, SolverType => SRMPSolverType, Energy => FactorGraph, Node => FactorNode }
+
+import srmp.{ EnergyOptions, Factor, FactorType, Energy => FactorGraph, Node => FactorNode, SolverType => SRMPSolverType }
 
 import scala.collection.mutable
 
 final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSolver[T, HEAD] with Logging {
   override def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
     val softmax = new Softmax()
-    val classifierLabelMap = new mutable.HashMap[LBJLearnerEquivalent, List[(String, Int)]]()
-    val instanceVariableMap = new mutable.HashMap[(LBJLearnerEquivalent, String, Any), (FactorNode, Boolean)]()
+    val classifierLabelMap = new mutable.HashMap[Learner, List[(String, Int)]]()
+    val instanceVariableMap = new mutable.HashMap[(Learner, String, Any), (FactorNode, Boolean)]()
 
     // XXX - Get appropriate number of nodes
     val factorGraph = new FactorGraph(50)
@@ -37,7 +39,7 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
         labels.zip(Array.fill(labels.size)(1))
       }
 
-      classifierLabelMap += (assignment.learner -> labelIndexMap)
+      classifierLabelMap += (assignment.learner.classifier -> labelIndexMap)
 
       assignment.foreach({
         case (instance: Any, scores: ScoreSet) =>
@@ -53,7 +55,7 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
             val node = factorGraph.addNode(2, costs)
             labelIndexMap.foreach({
               case (label: String, idx: Int) =>
-                instanceVariableMap += ((assignment.learner, label, instance) -> (node, idx == 1))
+                instanceVariableMap += ((assignment.learner.classifier, label, instance) -> (node, idx == 1))
             })
           } else {
             logger.info("Multi-variables thingy")
@@ -63,7 +65,7 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
                 val score = -1 * normalizedScoreset.getScore(label).score
                 val node = factorGraph.addNode(2, Array(-1 - score, score))
 
-                instanceVariableMap += ((assignment.learner, label, instance) -> (node, true))
+                instanceVariableMap += ((assignment.learner.classifier, label, instance) -> (node, true))
                 node
             })
 
@@ -73,8 +75,17 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
     })
 
     if (constraintsOpt.nonEmpty) {
-      //      logger.info("Processing constraints")
-      processConstraints(constraintsOpt.get, instanceVariableMap, factorGraph, factors, variables)
+      val lbjConstraints = LBJavaILPInferenceSolver.transformToLBJConstraint(constraintsOpt.get, new mutable.HashSet[FirstOrderVariable]())
+
+      // Using the LBJava Constraint expressions to simplify First-Order Logic
+      val propositional = {
+        lbjConstraints match {
+          case propositionalConjunction: PropositionalConjunction => propositionalConjunction.simplify(true)
+          case _ => lbjConstraints.asInstanceOf[PropositionalConstraint].simplify()
+        }
+      }
+
+      processConstraints(propositional, instanceVariableMap, factorGraph, factors, variables, isTopLevel = true)
     }
 
     val solverOptions = new EnergyOptions()
@@ -90,13 +101,13 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
     } else {
       val finalAssignments = priorAssignment.map({ assignment: Assignment =>
         val finalAssgn = Assignment(assignment.learner)
-        val domain = classifierLabelMap(assignment.learner)
+        val domain = classifierLabelMap(assignment.learner.classifier)
 
         assignment.foreach({
           case (instance: Any, _) =>
             val newScores = domain.map({
               case (label: String, idx: Int) =>
-                val variableTuple = instanceVariableMap((assignment.learner, label, instance))
+                val variableTuple = instanceVariableMap((assignment.learner.classifier, label, instance))
                 val binaryNode = variableTuple._1
                 val posterior = factorGraph.getSolution(binaryNode)
 
@@ -119,149 +130,211 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
   }
 
   private def processConstraints(
-    constraint: Constraint[_],
-    instanceVariableMap: mutable.HashMap[(LBJLearnerEquivalent, String, Any), (FactorNode, Boolean)],
+    constraint: LBJConstraint,
+    instanceVariableMap: mutable.HashMap[(Learner, String, Any), (FactorNode, Boolean)],
     factorGraph: FactorGraph,
     factors: mutable.ListBuffer[Factor],
     variables: mutable.ListBuffer[FactorNode],
-    createVariable: Boolean = false
+    isTopLevel: Boolean
   ): Option[(FactorNode, Boolean)] = {
     constraint match {
-      case c: PropositionalEqualityConstraint[_] =>
-        val value = c.equalityValOpt.orElse(c.inequalityValOpt).get
-        val variableWithState = instanceVariableMap((c.estimator, value, c.instanceOpt.get))
+      case c: PropositionalConstant =>
+        // Nothing to do if the constraint is a constant
+        // Ideally there should not be any constants
+        logger.info("Processing PropositionalConstant - No Operation")
+        None
+      case c: PropositionalVariable =>
+        logger.debug("Processing PropositionalVariable")
+        val binaryVariable = instanceVariableMap((c.getClassifier, c.getPrediction, c.getExample))
 
-        // Handle negative variable states
-        val isEquality = c.equalityValOpt.nonEmpty == variableWithState._2
+        if (isTopLevel) {
+          // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
+          // binaryVariable.setLogPotential(maxLogPotential)
+        }
 
-        Some((variableWithState._1, isEquality))
-      case c: PairConjunction[_, _] =>
-        val leftVariable = processConstraints(
-          c.c1,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.c2,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
-        ).get
+        // XXX - Verify this.
+        Some(binaryVariable)
+      case c: PropositionalConjunction =>
+        logger.debug("Processing PropositionalConjunction")
 
-        if (createVariable) {
-          val outputVariable = getOutputVariable(factorGraph, state = true)
-          val costs = SRMPFactorUtils.getPairConjunctionCosts(leftVariable._2, rightVariable._2, Some(true))
-          val factor = factorGraph.addFactor(3, Array(leftVariable._1, rightVariable._1, outputVariable), costs, FactorType.GeneralFactorType)
+        val variablesWithStates = c.getChildren.flatMap({ childConstraint: LBJConstraint =>
+          // Should return variables with states if this is not a top-level conjunction.
+          processConstraints(
+            childConstraint,
+            instanceVariableMap,
+            factorGraph,
+            factors,
+            variables,
+            isTopLevel = isTopLevel
+          )
+        })
 
-          //          logger.info("Adding a factor")
-
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
+        if (isTopLevel) {
+          // Top-Level conjunction does not need to be enforced with a factor.
+          None
         } else {
-          val costs = SRMPFactorUtils.getPairConjunctionCosts(leftVariable._2, rightVariable._2)
-          val factor = factorGraph.addPairwiseFactor(leftVariable._1, rightVariable._1, costs)
+          //          logger.info("Non-toplevel conjunction")
+          val firstPairOutput = variablesWithStates.head
 
-          //          logger.info("Adding a pairwise factor")
+          val outputVariableWithState = variablesWithStates.tail
+            .foldLeft(firstPairOutput)({
+              case (computedVariableWithState, currentVariableWithState) =>
+                // XXX - This needs to be generalized.
+                val intermediateVariable = getOutputVariable(factorGraph, state = true)
+                val costs = SRMPFactorUtils.getPairConjunctionCosts(
+                  computedVariableWithState._2,
+                  currentVariableWithState._2,
+                  Some(true)
+                )
 
-          factors += factor
+                val factor = factorGraph.addFactor(
+                  3,
+                  Array(computedVariableWithState._1, currentVariableWithState._1, intermediateVariable),
+                  costs,
+                  FactorType.GeneralFactorType
+                )
+
+                factors += factor
+                variables += intermediateVariable
+
+                (intermediateVariable, true)
+            })
+
+          Some(outputVariableWithState)
+        }
+      case c: PropositionalDisjunction =>
+        logger.debug("Processing PropositionalDisjunction")
+        //        if (createVariable) {
+        //          val outputVariable = getOutputVariable(factorGraph, state = true)
+        //          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2, Some(true))
+        //          val factor = factorGraph.addFactor(3, Array(leftVariable._1, rightVariable._1, outputVariable), costs, FactorType.GeneralFactorType)
+        //
+        //          //          logger.info("Adding a factor")
+        //
+        //          factors += factor
+        //          variables += outputVariable
+        //
+        //          Some((outputVariable, true))
+        //        } else {
+        //          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2)
+        //          val factor = factorGraph.addPairwiseFactor(leftVariable._1, rightVariable._1, costs)
+        //
+        //          //          logger.info("Adding a pairwise factor")
+        //
+        //          factors += factor
+        //          None
+        //        }
+
+        val variablesWithStates = c.getChildren.map({ childConstraint: LBJConstraint =>
+          // Should return variables with states.
+          processConstraints(
+            childConstraint,
+            instanceVariableMap,
+            factorGraph,
+            factors,
+            variables,
+            isTopLevel = false
+          ).get
+        })
+
+        if (variablesWithStates.length == 1) {
+          variablesWithStates.headOption
+        } else {
+          val firstPairOutput = variablesWithStates.head
+          val outputVariableWithState = variablesWithStates.tail
+            .foldLeft(firstPairOutput)({
+              case (computedVariableWithState, currentVariableWithState) =>
+                // XXX - This needs to be generalized.
+                val intermediateVariable = getOutputVariable(factorGraph, state = true)
+                val costs = SRMPFactorUtils.getPairDisjunctionCosts(
+                  computedVariableWithState._2,
+                  currentVariableWithState._2,
+                  Some(true)
+                )
+                val factor = factorGraph.addFactor(
+                  3,
+                  Array(computedVariableWithState._1, currentVariableWithState._1, intermediateVariable),
+                  costs,
+                  FactorType.GeneralFactorType
+                )
+
+                factors += factor
+                variables += intermediateVariable
+
+                (intermediateVariable, true)
+            })
+
+          if (isTopLevel) {
+            // XXX - Set the final output variable to true
+          } else {
+            // logger.info("Non-toplevel disjunction")
+          }
+
+          Some(outputVariableWithState)
+        }
+
+      case c: PropositionalNegation =>
+        logger.debug("Processing PropositionalNegation")
+
+        val childConstraints = c.getChildren
+        if (childConstraints.length == 1 && childConstraints.head.isInstanceOf[PropositionalVariable]) {
+          val childVariable = childConstraints.head.asInstanceOf[PropositionalVariable]
+          val binaryVariable = instanceVariableMap((childVariable.getClassifier, childVariable.getPrediction, childVariable.getExample))
+
+          if (isTopLevel) {
+            // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
+            // binaryVariable.setLogPotential(-maxLogPotential)
+          }
+
+          // XXX - Verify this
+          Some((binaryVariable._1, !binaryVariable._2))
+        } else {
+          logger.error("This constraint should already be processed")
           None
         }
-      case c: PairDisjunction[_, _] =>
-        val leftVariable = processConstraints(
-          c.c1,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.c2,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
-        ).get
+      case c: PropositionalAtLeast =>
+        logger.debug("Processing PropositionalAtLeast")
 
-        if (createVariable) {
-          val outputVariable = getOutputVariable(factorGraph, state = true)
-          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2, Some(true))
-          val factor = factorGraph.addFactor(3, Array(leftVariable._1, rightVariable._1, outputVariable), costs, FactorType.GeneralFactorType)
+        //        if (isTopLevel) {
+        val variablesWithStates = c.getChildren
+          .map({ childConstraint: LBJConstraint =>
+            processConstraints(
+              childConstraint,
+              instanceVariableMap,
+              factorGraph,
+              factors,
+              variables,
+              isTopLevel = false
+            ).get
+          })
+        val totalConstraints = variablesWithStates.length
+        println(totalConstraints)
+        //        }
 
-          //          logger.info("Adding a factor")
+        logger.error("PropositionalAtLeast - Not supported yet.")
 
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
-        } else {
-          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2)
-          val factor = factorGraph.addPairwiseFactor(leftVariable._1, rightVariable._1, costs)
-
-          //          logger.info("Adding a pairwise factor")
-
-          factors += factor
-          None
-        }
-      case c: Implication[_, _] =>
-        val leftVariable = processConstraints(
-          c.p.negate,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
-        ).get
-        val rightVariable = processConstraints(
-          c.q,
-          instanceVariableMap, factorGraph, factors, variables, createVariable = true
-        ).get
-
-        if (createVariable) {
-          val outputVariable = getOutputVariable(factorGraph, state = true)
-          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2, Some(true))
-          val factor = factorGraph.addFactor(3, Array(leftVariable._1, rightVariable._1, outputVariable), costs, FactorType.GeneralFactorType)
-
-          //          logger.info("Adding a factor")
-
-          factors += factor
-          variables += outputVariable
-
-          Some((outputVariable, true))
-        } else {
-          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2)
-          val factor = factorGraph.addPairwiseFactor(leftVariable._1, rightVariable._1, costs)
-
-          //          logger.info("Adding a pairwise factor")
-
-          factors += factor
-          None
-        }
-      case c: Negation[_] =>
-        //        val constraint = transformToLBJConstraint(c.p)
-        logger.warn("Unsupported!")
-        // Verify this once.
-        //        new FirstOrderNegation(constraint)
-        None
-      case c: ForAll[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: AtLeast[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: AtMost[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: Exactly[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        None
-      case c: ConstraintCollections[_, _] =>
-        logger.warn("Unsupported!")
-        //        new FirstOrderConstant(true)
-        //        c.constraints.foldRight(Set[Any]()) {
-        //          case (singleConstraint, ins) =>
-        //            ins union getInstancesInvolved(singleConstraint).asInstanceOf[Set[Any]]
+        //          // Budget factor evaluates as <= budget
+        //          val factor = factorGraph.createFactorBUDGET(
+        //            variablesWithStates.map(_._1),
+        //            variablesWithStates.map(_._2),
+        //            totalConstraints - c.getM,
+        //            true
+        //          )
+        //
+        //          factors += factor
+        //        } else {
+        //
         //        }
         None
+      case c: PropositionalImplication =>
+        logger.info("Processing PropositionalImplication")
+        logger.error("PropositionalImplication - This constraint should already be processed")
+        None
+      case c: PropositionalDoubleImplication =>
+        logger.info("Processing PropositionalDoubleImplication")
+        logger.error("PropositionalDoubleImplication - This constraint should already be processed")
+        None
       case _ =>
-        //        new FirstOrderConstant(true)
-        //      case c: EstimatorPairEqualityConstraint[_] =>
-        //        Set(c.instance)
-        //      case c: InstancePairEqualityConstraint[_] =>
-        //        Set(c.instance1, c.instance2Opt.get)
-        //      case _ =>
         throw new Exception("Unknown constraint exception! This constraint should have been rewritten in terms of other constraints. ")
     }
   }
