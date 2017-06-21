@@ -90,6 +90,5 @@ object CommonSensors extends Logging {
     val annotatorService = PipelineFactory.buildPipeline()
     processDocumentWith(annotatorService, "corpus", id, content)
   }
-
 }
 

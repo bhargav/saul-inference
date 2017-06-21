@@ -14,7 +14,10 @@ import edu.illinois.cs.cogcomp.saul.datamodel.property.Property
 /** Created by Parisa on 12/30/15.
   */
 object SRLClassifiers {
-  import SRLApps.srlDataModelObject._
+  // Singleton data model instance for SRL classifiers.
+  val SRLDataModel: SRLMultiGraphDataModel = new SRLMultiGraphDataModel()
+  import SRLDataModel._
+
   //TODO This needs to be overriden by the user; change it to be dynamic
   val parameters = new SparseAveragedPerceptron.Parameters()
 

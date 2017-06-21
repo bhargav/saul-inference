@@ -9,12 +9,17 @@ package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
 import edu.illinois.cs.cogcomp.core.utilities.configuration.ResourceManager
 
+import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ Sentence, TreeView }
 import edu.illinois.cs.cogcomp.saul.classifier.{ ClassifierUtils, JointTrainSparseNetwork }
 import edu.illinois.cs.cogcomp.saul.util.Logging
+import edu.illinois.cs.cogcomp.saulexamples.data.SRLFrameManager
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers._
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstrainedClassifiers.ArgTypeConstrainedClassifier
 
 import java.io.File
+import edu.illinois.cs.cogcomp.pipeline.server.ServerClientAnnotator
+
+import scala.collection.JavaConverters._
 
 object SRLscalaConfigurator {
 
@@ -68,9 +73,10 @@ object SRLscalaConfigurator {
   // Should we train an argument type classifier
   val SRL_TRAIN_ARG_TYPE = false
 
+  lazy val SRL_FRAME_MANAGER: SRLFrameManager = new SRLFrameManager(PROPBANK_HOME)
 }
 
-object SRLApps extends Logging {
+object RunningApps extends App with Logging {
 
   import SRLscalaConfigurator._
 
@@ -95,21 +101,16 @@ object SRLApps extends Logging {
   logger.info("population starts.")
 
   // Here, the data is loaded into the graph
-  val srlDataModelObject = PopulateSRLDataModel(testOnly = TEST_MODE, SRL_GOLD_PREDICATES, SRL_GOLD_ARG_BOUNDARIES)
+  PopulateSRLDataModel(testOnly = TEST_MODE, SRL_GOLD_PREDICATES, SRL_GOLD_ARG_BOUNDARIES)
 
-  import srlDataModelObject._
+  import SRLDataModel._
 
   logger.info("all relations number after population:" + relations().size)
   logger.info("all sentences number after population:" + sentences().size)
   logger.info("all predicates number after population:" + predicates().size)
   logger.info("all arguments number after population:" + arguments().size)
   logger.info("all tokens number after population:" + tokens().size)
-}
 
-object RunningApps extends App with Logging {
-  import SRLApps._
-  import SRLApps.srlDataModelObject._
-  import SRLscalaConfigurator._
   // TRAINING
   if (!TEST_MODE) {
     expName match {
@@ -162,7 +163,7 @@ object RunningApps extends App with Logging {
         argumentTypeLearner.save()
 
       case "pTr" =>
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_bTr/", argumentXuIdentifierGivenApredicate)
+        ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_bTr/", argumentXuIdentifierGivenApredicate)
         val training = relations.getTrainingInstances.filter(x => argumentXuIdentifierGivenApredicate(x).equals("true"))
         argumentTypeLearner.modelDir = modelDir
         argumentTypeLearner.learn(100, training)
@@ -199,27 +200,27 @@ object RunningApps extends App with Logging {
     (SRL_TEST_PIPELINE, SRL_TEST_CONSTRAINTS) match {
 
       case (true, true) =>
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_bTr/", argumentXuIdentifierGivenApredicate)
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_cTr/", argumentTypeLearner)
+        ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_bTr/", argumentXuIdentifierGivenApredicate)
+        ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_cTr/", argumentTypeLearner)
         argumentTypeLearner.test(
           prediction = typeArgumentPipeGivenGoldPredicateConstrained,
           groundTruth = argumentLabelGold, exclude = "candidate"
         )
 
       case (true, false) =>
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_bTr/", argumentXuIdentifierGivenApredicate)
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_aTr/", argumentTypeLearner)
+        ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_bTr/", argumentXuIdentifierGivenApredicate)
+        ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/", argumentTypeLearner)
         argumentTypeLearner.test(
           prediction = typeArgumentPipeGivenGoldPredicate,
           groundTruth = argumentLabelGold, exclude = "candidate"
         )
 
       case (false, true) =>
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_cTr/", argumentTypeLearner)
+        ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_cTr/", argumentTypeLearner)
         ArgTypeConstrainedClassifier.test(outputGranularity = 100, exclude = "candidate")
 
       case (false, false) =>
-        ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_aTr/", argumentTypeLearner)
+        ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH + "/models_aTr/", argumentTypeLearner)
         argumentTypeLearner.test(exclude = "candidate")
     }
   }

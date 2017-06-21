@@ -21,8 +21,8 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstrai
 
 import scala.collection.JavaConversions._
 
-class SRLMultiGraphDataModel(parseViewName: String = null, frameManager: SRLFrameManager = null) extends DataModel {
-
+class SRLMultiGraphDataModel(val parseViewName: String = SRLscalaConfigurator.SRL_PARSE_VIEW, val frameManager: SRLFrameManager = SRLscalaConfigurator.SRL_FRAME_MANAGER) extends DataModel {
+  // Nodes
   val predicates = node[Constituent]((x: Constituent) => x.getTextAnnotation.getCorpusId + ":" + x.getTextAnnotation.getId + ":" + x.getSpan)
 
   val arguments = node[Constituent]((x: Constituent) => x.getTextAnnotation.getCorpusId + ":" + x.getTextAnnotation.getId + ":" + x.getSpan)
@@ -36,18 +36,25 @@ class SRLMultiGraphDataModel(parseViewName: String = null, frameManager: SRLFram
 
   val tokens = node[Constituent]((x: Constituent) => x.getTextAnnotation.getCorpusId + ":" + x.getTextAnnotation.getId + ":" + x.getSpan)
 
+  // Edges
+
   val sentencesToStringTree = edge(sentences, stringTree)
   val sentencesToTokens = edge(sentences, tokens)
   val sentencesToRelations = edge(sentences, relations)
   val relationsToPredicates = edge(relations, predicates)
   val relationsToArguments = edge(relations, arguments)
 
+  // Sensors
+
   sentencesToTokens.addSensor(CommonSensors.textAnnotationToTokens _)
   sentencesToRelations.addSensor(textAnnotationToRelation _)
+
   sentencesToRelations.addSensor(textAnnotationToRelationMatch _)
   relationsToArguments.addSensor(relToArgument _)
   relationsToPredicates.addSensor(relToPredicate _)
   sentencesToStringTree.addSensor(textAnnotationToStringTree _)
+
+  // Properties
 
   /** This can be applied to both predicates and arguments */
   val address = property(predicates, "add") {

@@ -11,11 +11,12 @@ import edu.illinois.cs.cogcomp.core.datastructures.textannotation._
 import edu.illinois.cs.cogcomp.core.datastructures.trees.Tree
 import edu.illinois.cs.cogcomp.edison.features._
 import edu.illinois.cs.cogcomp.edison.features.factory.WordFeatureExtractorFactory
+import edu.illinois.cs.cogcomp.saul.util.Logging
 import edu.illinois.cs.cogcomp.saulexamples.data.XuPalmerCandidateGenerator
 
 import scala.collection.JavaConversions._
 
-object SRLSensors {
+object SRLSensors extends Logging {
   def sentenceToGoldPredicates(ta: TextAnnotation): List[Constituent] = {
     ta.getView(ViewNames.SRL_VERB).asInstanceOf[PredicateArgumentView].getPredicates.toList
   }
@@ -29,13 +30,13 @@ object SRLSensors {
 
   def textAnnotationToTree(ta: TextAnnotation): Tree[Constituent] = {
     // We assume that there is only 1 sentence per TextAnnotation
-    val parseViewName: String = ViewNames.PARSE_GOLD
+    val parseViewName: String = SRLscalaConfigurator.SRL_PARSE_VIEW
     ta.getView(parseViewName).asInstanceOf[TreeView].getConstituentTree(0)
   }
 
   def textAnnotationToStringTree(ta: TextAnnotation): Tree[String] = {
     // We assume that there is only 1 sentence per TextAnnotation
-    val parseViewName: String = ViewNames.PARSE_GOLD
+    val parseViewName: String = SRLscalaConfigurator.SRL_PARSE_VIEW
     ta.getView(parseViewName).asInstanceOf[TreeView].getTree(0)
   }
 
@@ -74,9 +75,15 @@ object SRLSensors {
   }
 
   def xuPalmerCandidate(x: Constituent, y: Tree[String]): List[Relation] = {
-    val p = XuPalmerCandidateGenerator.generateCandidates(x, y)
-    val z = p.map(y => new Relation("candidate", x.cloneForNewView(x.getViewName), y.cloneForNewView(y.getViewName), 0.0))
-    z.toList
+    try {
+      val p = XuPalmerCandidateGenerator.generateCandidates(x, y)
+      val z = p.map(y => new Relation("candidate", x.cloneForNewView(x.getViewName), y.cloneForNewView(y.getViewName), 0.0))
+      z.toList
+    } catch {
+      case _: Exception =>
+        logger.warn("Exception while populating XuPalmer Candidates")
+        List()
+    }
   }
 
   def fexFeatureExtractor(x: Constituent, fex: FeatureExtractor): String = {

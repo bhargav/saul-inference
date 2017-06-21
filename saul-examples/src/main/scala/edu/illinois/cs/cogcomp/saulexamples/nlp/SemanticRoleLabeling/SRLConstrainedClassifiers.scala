@@ -8,29 +8,31 @@ package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ Relation, TextAnnotation }
 import edu.illinois.cs.cogcomp.saul.classifier.infer.ConstrainedClassifier
-import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.Gurobi
+import edu.illinois.cs.cogcomp.saul.classifier.infer.solver.OJAlgo
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers.{ argumentTypeLearner, argumentXuIdentifierGivenApredicate }
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConstraints._
 
 object SRLConstrainedClassifiers {
-  import SRLApps.srlDataModelObject._
+  import SRLClassifiers.SRLDataModel._
+
+  val inferenceSolverType = OJAlgo
 
   object ArgTypeConstrainedClassifier extends ConstrainedClassifier[Relation, TextAnnotation] {
     override def subjectTo = Some(argumentTypeConstraints)
-    override def solverType = Gurobi
+    override def solverType = inferenceSolverType
     override lazy val onClassifier = argumentTypeLearner
     override val pathToHead = Some(-sentencesToRelations)
   }
 
   object ArgIsTypeConstrainedClassifier extends ConstrainedClassifier[Relation, Relation] {
     override def subjectTo = Some(arg_IdentifierClassifier_Constraint)
-    override def solverType = Gurobi
+    override def solverType = inferenceSolverType
     override lazy val onClassifier = argumentTypeLearner
   }
 
   object ArgIdentifyConstrainedClassifier extends ConstrainedClassifier[Relation, Relation] {
     override def subjectTo = Some(arg_IdentifierClassifier_Constraint)
-    override def solverType = Gurobi
+    override def solverType = inferenceSolverType
     override lazy val onClassifier = argumentXuIdentifierGivenApredicate
   }
 }

@@ -3,7 +3,9 @@ import sbtrelease.ReleaseStateTransformations._
 
 scalaVersion in ThisBuild := "2.11.7"
 
-val cogcompNLPVersion = "3.0.106"
+val cogcompNLPVersion = "3.1.7"
+val lbjavaVersion = "1.2.27"
+
 val ccgGroupId = "edu.illinois.cs.cogcomp"
 val headerMsg =  """/** This software is released under the University of Illinois/Research and Academic Use License. See
                         |  * the LICENSE file in the root folder for details. Copyright (c) 2016
@@ -60,7 +62,7 @@ lazy val commonSettings = Seq(
   ),
   javaOptions ++= List("-Xmx11g"),
   libraryDependencies ++= Seq(
-    ccgGroupId % "LBJava" % "1.2.27" withSources,
+    ccgGroupId % "LBJava" % lbjavaVersion withSources,
     ccgGroupId % "illinois-core-utilities" % cogcompNLPVersion withSources,
     ccgGroupId % "illinois-inference" % cogcompNLPVersion withSources,
     "com.gurobi" % "gurobi" % "7.0.1",
@@ -69,7 +71,7 @@ lazy val commonSettings = Seq(
     "cc.factorie" %% "factorie" % "1.2",
     "org.apache.commons" % "commons-math3" % "3.6.1",
     "org.scalatest" %% "scalatest" % "2.2.4",
-    "ch.qos.logback" % "logback-classic" % "1.1.7"
+    "ch.qos.logback" % "logback-classic" % "1.2.3"
   ),
   scalacOptions ++= Seq("-unchecked", "-feature", "-language:postfixOps"),
   fork := true,
@@ -107,7 +109,7 @@ lazy val saulExamples = (project in file("saul-examples")).
       ccgGroupId % "illinois-pos" % cogcompNLPVersion,
       ccgGroupId % "saul-pos-tagger-models" % "1.4",
       ccgGroupId % "saul-er-models" % "1.8",
-      ccgGroupId % "saul-srl-models" % "1.3",
+      ccgGroupId % "saul-srl-models" % "1.4" classifier "verb-gold",
       "org.json" % "json" % "20140107",
       "com.twitter" % "hbc-core" % "2.2.0",
       "org.rogach" %% "scallop" % "2.0.5"

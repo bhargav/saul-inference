@@ -26,7 +26,11 @@ object SpRLDataModelReader extends Logging {
   def read(path: String, version: String): List[SpRLSentence] = {
 
     val settings = new Properties()
-    TextAnnotationFactory.disableSettings(settings, USE_SRL_NOM, USE_NER_ONTONOTES)
+    // Note: We do not want to use SENTENCE_PIPELINE but the configuration property is incorrect
+    // in PipelineFactory. This will need to be updated when PipelineFactory is fixed.
+    TextAnnotationFactory.enableSettings(settings, USE_POS, USE_LEMMA, USE_NER_CONLL, USE_SHALLOW_PARSE,
+      USE_STANFORD_DEP, USE_STANFORD_PARSE, USE_SRL_VERB, USE_SENTENCE_PIPELINE)
+
     val as = TextAnnotationFactory.createPipelineAnnotatorService(settings)
     val reader = new SpRLDataReader(path, classOf[SpRL2013Document])
     reader.readData()

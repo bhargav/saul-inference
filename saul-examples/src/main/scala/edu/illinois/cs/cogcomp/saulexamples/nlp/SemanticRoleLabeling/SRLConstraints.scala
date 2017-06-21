@@ -8,8 +8,14 @@ package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation._
 import edu.illinois.cs.cogcomp.saul.classifier.infer.Constraint._
-import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLApps.srlDataModelObject._
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers.{ argumentTypeLearner, argumentXuIdentifierGivenApredicate }
+
+import edu.illinois.cs.cogcomp.lbjava.infer.{ FirstOrderConstant, FirstOrderConstraint }
+import edu.illinois.cs.cogcomp.saulexamples.data.XuPalmerCandidateGenerator
+
+import scala.collection.JavaConversions._
+
+import SRLClassifiers.SRLDataModel._
 
 object SRLConstraints {
   def argumentTypeConstraints = sentences.ForEach { x: TextAnnotation =>

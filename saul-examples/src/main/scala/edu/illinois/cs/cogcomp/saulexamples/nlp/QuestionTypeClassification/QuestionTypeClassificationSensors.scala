@@ -23,7 +23,9 @@ object QuestionTypeClassificationSensors {
 
   lazy val pipeline = {
     val settings = new Properties()
-    TextAnnotationFactory.disableSettings(settings, USE_SRL_NOM)
+    TextAnnotationFactory.enableSettings(settings, USE_POS, USE_DEP, USE_LEMMA, USE_SHALLOW_PARSE, USE_NER_CONLL,
+      USE_NER_ONTONOTES, USE_STANFORD_DEP, USE_STANFORD_PARSE, USE_SRL_VERB, USE_SRL_PREP, USE_SRL_COMMA,
+      USE_QUANTIFIER)
     TextAnnotationFactory.createPipelineAnnotatorService(settings)
   }
 

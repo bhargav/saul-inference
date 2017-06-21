@@ -6,10 +6,12 @@
   */
 package edu.illinois.cs.cogcomp.saulexamples.data;
 
-import edu.illinois.cs.cogcomp.core.utilities.configuration.ResourceManager;
-import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLConfigurator;
+import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLscalaConfigurator;
+
 import org.junit.Before;
 import org.junit.Test;
+
+import org.scalatest.junit.JUnitSuite;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -18,14 +20,13 @@ import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class SRLFrameManagerTest {
+public class SRLFrameManagerTest extends JUnitSuite {
 
     private SRLFrameManager frameManager;
 
     @Before
     public void setUp() throws Exception {
-        ResourceManager rm = new SRLConfigurator().getDefaultConfig();
-        frameManager = new SRLFrameManager(rm.getString(SRLConfigurator.PROPBANK_HOME.key));
+        frameManager = new SRLFrameManager(SRLscalaConfigurator.PROPBANK_HOME());
     }
 
     @Test

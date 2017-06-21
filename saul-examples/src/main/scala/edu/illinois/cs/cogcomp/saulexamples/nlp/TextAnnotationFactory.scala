@@ -12,6 +12,7 @@ import edu.illinois.cs.cogcomp.annotation.AnnotatorService
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ TextAnnotation, TokenLabelView }
 import edu.illinois.cs.cogcomp.core.utilities.configuration.{ Configurator, Property, ResourceManager }
 import edu.illinois.cs.cogcomp.curator.{ CuratorConfigurator, CuratorFactory }
+import edu.illinois.cs.cogcomp.pipeline.common.PipelineConfigurator
 import edu.illinois.cs.cogcomp.pipeline.main.PipelineFactory
 
 /** Created by taher on 7/30/16.
@@ -37,7 +38,7 @@ object TextAnnotationFactory {
 
   def createPipelineAnnotatorService(settings: Properties): AnnotatorService = {
     PipelineFactory.buildPipeline(
-      new CuratorConfigurator().getConfig(new ResourceManager(settings))
+      new PipelineConfigurator().getConfig(new ResourceManager(settings))
     )
   }
 

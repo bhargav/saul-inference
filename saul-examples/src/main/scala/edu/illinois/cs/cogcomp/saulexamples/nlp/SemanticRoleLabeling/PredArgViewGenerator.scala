@@ -18,8 +18,9 @@ import scala.collection.JavaConversions._
   */
 object PredArgViewGenerator {
 
-  def toPredArgList(graph: SRLMultiGraphDataModel, labelProp: TypedProperty[Relation, String]): Iterable[PredicateArgumentView] = {
-    import graph._
+  import SRLClassifiers.SRLDataModel._
+
+  def toPredArgList(labelProp: TypedProperty[Relation, String]): Iterable[PredicateArgumentView] = {
     sentences().map { ta =>
       val predArgView: PredicateArgumentView = new PredicateArgumentView(ViewNames.SRL_VERB, ta)
       (sentences(ta) ~> sentencesToRelations ~> relationsToPredicates).foreach { pred =>
