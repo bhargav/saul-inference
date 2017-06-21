@@ -147,13 +147,11 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     SRLDataModel.relations.clear()
     SRLDataModel.relations.populate(finalRelationList, train = false)
 
-    finalRelationList.flatMap({ relation: Relation =>
-      val label = SRLConstrainedClassifiers.ArgTypeConstrainedClassifier(relation)
-      if (label == "candidate")
-        None
-      else
-        Some(SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, getViewName))
-    })
+    SRLConstrainedClassifiers.ArgTypeConstrainedClassifier(finalRelationList)
+      .filter(_._2 == "candidate")
+      .map({ case (relation: Relation, label: String) =>
+        SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, getViewName)
+      })
   }
 }
 
