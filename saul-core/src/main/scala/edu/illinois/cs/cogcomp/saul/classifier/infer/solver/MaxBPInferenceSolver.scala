@@ -10,7 +10,7 @@ import cc.factorie.DenseTensor1
 import cc.factorie.infer._
 import cc.factorie.model.{ DotTemplateWithStatistics1, Factor, ItemizedModel, Parameters }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
-import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => LBJConstraint, _ }
+import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => LBJConstraint, PropositionalConstraint => LBJPropositionalConstraint, _ }
 import edu.illinois.cs.cogcomp.lbjava.learn.{ Learner, Softmax }
 import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 import edu.illinois.cs.cogcomp.saul.classifier.infer.factorgraph.{ BinaryRandomVariable, FactorUtils }
@@ -61,7 +61,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
             factors += family.Factor(binaryVariable)
             variables += binaryVariable
           } else {
-            labels.map({ label: String =>
+            val binaryVariables = labels.map({ label: String =>
 
               /* Normalized Probability Scores */
               val score = normalizedScoreset.getScore(label).score
@@ -78,7 +78,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
             })
 
             // XXX - binaryVariables needs an ExactlyOne factor
-            logger.error("Unsuppported!")
+            logger.error("Convert to XOR - Unsuppported!")
           }
       })
     })
@@ -90,7 +90,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
       val propositional = {
         lbjConstraints match {
           case propositionalConjunction: PropositionalConjunction => propositionalConjunction.simplify(true)
-          case _ => lbjConstraints.asInstanceOf[PropositionalConstraint].simplify()
+          case _ => lbjConstraints.asInstanceOf[LBJPropositionalConstraint].simplify()
         }
       }
 
@@ -132,7 +132,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
   }
 
   private def processConstraints(
-    constraint: LBJConstraint,
+    constraint: LBJPropositionalConstraint,
     instanceVariableMap: mutable.HashMap[(Learner, String, Any), (BinaryRandomVariable, Boolean)],
     factors: mutable.ListBuffer[Factor],
     variables: mutable.ListBuffer[BinaryRandomVariable],
@@ -160,7 +160,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
         val variablesWithStates = c.getChildren.flatMap({ childConstraint: LBJConstraint =>
           // Should return variables with states if this is not a top-level conjunction.
           processConstraints(
-            childConstraint,
+            childConstraint.asInstanceOf[LBJPropositionalConstraint],
             instanceVariableMap,
             factors,
             variables,
@@ -198,7 +198,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
         val variablesWithStates = c.getChildren.map({ childConstraint: LBJConstraint =>
           // Should return variables with states.
           processConstraints(
-            childConstraint,
+            childConstraint.asInstanceOf[LBJPropositionalConstraint],
             instanceVariableMap,
             factors,
             variables,
@@ -256,23 +256,94 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
         }
       case c: PropositionalAtLeast =>
         logger.debug("Processing PropositionalAtLeast")
+        logger.info(s"Atleast ${c.getM} of ${c.size()} - $isTopLevel")
 
-        //        if (isTopLevel) {
-        val variablesWithStates = c.getChildren
-          .map({ childConstraint: LBJConstraint =>
+        if (c.getM == 1) {
+          // Treat this as a disjunction.
+          val childConstraints = c.getChildren
+          if (childConstraints.length == 1) {
             processConstraints(
-              childConstraint,
+              childConstraints.head.asInstanceOf[LBJPropositionalConstraint],
               instanceVariableMap,
               factors,
               variables,
-              isTopLevel = false
-            ).get
-          })
-        val totalConstraints = variablesWithStates.length
-        println(totalConstraints)
-        //        }
+              isTopLevel = isTopLevel
+            )
+          } else {
+            val disjunction = new PropositionalDisjunction(
+              childConstraints.head.asInstanceOf[LBJPropositionalConstraint],
+              childConstraints(1).asInstanceOf[LBJPropositionalConstraint])
 
-        logger.error("PropositionalAtLeast - Not supported yet.")
+            childConstraints.drop(2).foreach({ constraint: LBJConstraint =>
+              disjunction.add(constraint.asInstanceOf[LBJPropositionalConstraint])
+            })
+
+            processConstraints(
+              disjunction,
+              instanceVariableMap,
+              factors,
+              variables,
+              isTopLevel = isTopLevel
+            )
+          }
+        } else if (c.getM == c.size() - 1) {
+          // Treat this as a disjunction of conjunctions
+          val childConstraints = c.getChildren
+          val innerConjunctions = childConstraints.combinations(c.getM)
+            .map(childSubset => {
+              if (childSubset.length == 1) {
+                childSubset.head.asInstanceOf[LBJPropositionalConstraint]
+              } else {
+                val conjunction = new PropositionalConjunction(
+                  childSubset.head.asInstanceOf[LBJPropositionalConstraint],
+                  childSubset(1).asInstanceOf[LBJPropositionalConstraint]
+                )
+
+                childSubset.drop(2).foreach(c => conjunction.add(c.asInstanceOf[LBJPropositionalConstraint]))
+
+                conjunction
+              }
+            }).toArray
+
+          if (innerConjunctions.length == 1) {
+            processConstraints(
+              innerConjunctions.head,
+              instanceVariableMap,
+              factors,
+              variables,
+              isTopLevel = isTopLevel
+            )
+          } else {
+            val outerDisjunction = new PropositionalDisjunction(
+              innerConjunctions.head,
+              innerConjunctions(1)
+            )
+            innerConjunctions.drop(2).foreach(c => outerDisjunction.add(c))
+            processConstraints(
+              innerConjunctions.head,
+              instanceVariableMap,
+              factors,
+              variables,
+              isTopLevel = isTopLevel
+            )
+          }
+
+        } else {
+//          val variablesWithStates = c.getChildren
+//            .map({ childConstraint: LBJConstraint =>
+//              processConstraints(
+//                childConstraint,
+//                instanceVariableMap,
+//                factors,
+//                variables,
+//                isTopLevel = false
+//              ).get
+//            })
+//
+//          val totalConstraints = variablesWithStates.length
+
+          logger.error("PropositionalAtLeast - Not supported yet.")
+        }
 
         //          // Budget factor evaluates as <= budget
         //          val factor = factorGraph.createFactorBUDGET(
