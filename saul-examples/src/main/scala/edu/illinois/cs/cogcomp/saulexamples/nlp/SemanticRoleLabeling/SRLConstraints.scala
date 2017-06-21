@@ -14,7 +14,7 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifi
 object SRLConstraints {
   def argumentTypeConstraints = sentences.ForEach { x: TextAnnotation =>
     noOverlapConstraint.sensor(x) and legalArgumentsConstraint.sensor(x) and noDuplicatesConstraint.sensor(x) and
-    continuationConstraint.sensor(x) and referenceConstraint.sensor(x)
+      continuationConstraint.sensor(x) and referenceConstraint.sensor(x)
   }
 
   def noOverlapConstraint = sentences.ForEach { x: TextAnnotation =>
@@ -51,7 +51,7 @@ object SRLConstraints {
     (sentences(x) ~> sentencesToRelations ~> relationsToPredicates).toList.distinct.ForAll { verb: Constituent =>
       val relationsList = (predicates(verb) ~> -relationsToPredicates).toList.distinct
       coreArguments.ForAll { coreArgument: String =>
-        relationsList.AtMost(1) { rel:Relation => argumentTypeLearner on rel is coreArgument }
+        relationsList.AtMost(1) { rel: Relation => argumentTypeLearner on rel is coreArgument }
       }
     }
   }
