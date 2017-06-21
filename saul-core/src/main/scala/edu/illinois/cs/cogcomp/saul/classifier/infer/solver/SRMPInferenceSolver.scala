@@ -8,7 +8,7 @@ package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
 import edu.illinois.cs.cogcomp.lbjava.learn.{ Learner, Softmax }
-import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => LBJConstraint, _ }
+import edu.illinois.cs.cogcomp.lbjava.infer.{ Constraint => LBJConstraint, PropositionalConstraint => LBJPropositionalConstraint, _ }
 
 import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 import edu.illinois.cs.cogcomp.saul.classifier.infer.factorgraph.SRMPFactorUtils
@@ -25,7 +25,7 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
     val instanceVariableMap = new mutable.HashMap[(Learner, String, Any), (FactorNode, Boolean)]()
 
     // XXX - Get appropriate number of nodes
-    val factorGraph = new FactorGraph(50)
+    val factorGraph = new FactorGraph(5000)
 
     val factors = new mutable.ListBuffer[Factor]()
     val variables = new mutable.ListBuffer[FactorNode]()
@@ -81,7 +81,7 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
       val propositional = {
         lbjConstraints match {
           case propositionalConjunction: PropositionalConjunction => propositionalConjunction.simplify(true)
-          case _ => lbjConstraints.asInstanceOf[PropositionalConstraint].simplify()
+          case _ => lbjConstraints.asInstanceOf[LBJPropositionalConstraint].simplify()
         }
       }
 
@@ -130,7 +130,7 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
   }
 
   private def processConstraints(
-    constraint: LBJConstraint,
+    constraint: LBJPropositionalConstraint,
     instanceVariableMap: mutable.HashMap[(Learner, String, Any), (FactorNode, Boolean)],
     factorGraph: FactorGraph,
     factors: mutable.ListBuffer[Factor],
@@ -149,7 +149,9 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
 
         if (isTopLevel) {
           // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
-          // binaryVariable.setLogPotential(maxLogPotential)
+          // Check if we need higher weights
+          val costs = if (binaryVariable._2) Array(0, -1.0) else Array(-1.0, 0)
+          factorGraph.addUnaryFactor(binaryVariable._1, costs)
         }
 
         // XXX - Verify this.
@@ -160,7 +162,7 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
         val variablesWithStates = c.getChildren.flatMap({ childConstraint: LBJConstraint =>
           // Should return variables with states if this is not a top-level conjunction.
           processConstraints(
-            childConstraint,
+            childConstraint.asInstanceOf[LBJPropositionalConstraint],
             instanceVariableMap,
             factorGraph,
             factors,
@@ -204,31 +206,11 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
         }
       case c: PropositionalDisjunction =>
         logger.debug("Processing PropositionalDisjunction")
-        //        if (createVariable) {
-        //          val outputVariable = getOutputVariable(factorGraph, state = true)
-        //          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2, Some(true))
-        //          val factor = factorGraph.addFactor(3, Array(leftVariable._1, rightVariable._1, outputVariable), costs, FactorType.GeneralFactorType)
-        //
-        //          //          logger.info("Adding a factor")
-        //
-        //          factors += factor
-        //          variables += outputVariable
-        //
-        //          Some((outputVariable, true))
-        //        } else {
-        //          val costs = SRMPFactorUtils.getPairDisjunctionCosts(leftVariable._2, rightVariable._2)
-        //          val factor = factorGraph.addPairwiseFactor(leftVariable._1, rightVariable._1, costs)
-        //
-        //          //          logger.info("Adding a pairwise factor")
-        //
-        //          factors += factor
-        //          None
-        //        }
 
         val variablesWithStates = c.getChildren.map({ childConstraint: LBJConstraint =>
           // Should return variables with states.
           processConstraints(
-            childConstraint,
+            childConstraint.asInstanceOf[LBJPropositionalConstraint],
             instanceVariableMap,
             factorGraph,
             factors,
@@ -241,16 +223,27 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
           variablesWithStates.headOption
         } else {
           val firstPairOutput = variablesWithStates.head
+          val lastOutput = variablesWithStates.last
+
           val outputVariableWithState = variablesWithStates.tail
             .foldLeft(firstPairOutput)({
               case (computedVariableWithState, currentVariableWithState) =>
                 // XXX - This needs to be generalized.
-                val intermediateVariable = getOutputVariable(factorGraph, state = true)
+
+                val intermediateVariable = {
+                  if (currentVariableWithState == lastOutput && isTopLevel) {
+                    // XXX - Set the final output variable to true.. Verify
+                    factorGraph.addNode(2, Array(0, -1))
+                  } else
+                    getOutputVariable(factorGraph, state = true)
+                }
+
                 val costs = SRMPFactorUtils.getPairDisjunctionCosts(
                   computedVariableWithState._2,
                   currentVariableWithState._2,
                   Some(true)
                 )
+
                 val factor = factorGraph.addFactor(
                   3,
                   Array(computedVariableWithState._1, currentVariableWithState._1, intermediateVariable),
@@ -263,12 +256,6 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
 
                 (intermediateVariable, true)
             })
-
-          if (isTopLevel) {
-            // XXX - Set the final output variable to true
-          } else {
-            // logger.info("Non-toplevel disjunction")
-          }
 
           Some(outputVariableWithState)
         }
@@ -283,7 +270,8 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
 
           if (isTopLevel) {
             // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
-            // binaryVariable.setLogPotential(-maxLogPotential)
+            val costs = if (!binaryVariable._2) Array(0, -1.0) else Array(-1.0, 0)
+            factorGraph.addUnaryFactor(binaryVariable._1, costs)
           }
 
           // XXX - Verify this
@@ -295,23 +283,96 @@ final class SRMPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSo
       case c: PropositionalAtLeast =>
         logger.debug("Processing PropositionalAtLeast")
 
-        //        if (isTopLevel) {
-        val variablesWithStates = c.getChildren
-          .map({ childConstraint: LBJConstraint =>
+        if (c.getM == 1) {
+          // Treat this as a disjunction.
+          val childConstraints = c.getChildren
+          if (childConstraints.length == 1) {
             processConstraints(
-              childConstraint,
+              childConstraints.head.asInstanceOf[LBJPropositionalConstraint],
               instanceVariableMap,
               factorGraph,
               factors,
               variables,
-              isTopLevel = false
-            ).get
-          })
-        val totalConstraints = variablesWithStates.length
-        println(totalConstraints)
-        //        }
+              isTopLevel = isTopLevel
+            )
+          } else {
+            val disjunction = new PropositionalDisjunction(
+              childConstraints.head.asInstanceOf[LBJPropositionalConstraint],
+              childConstraints(1).asInstanceOf[LBJPropositionalConstraint]
+            )
 
-        logger.error("PropositionalAtLeast - Not supported yet.")
+            childConstraints.drop(2).foreach({ constraint: LBJConstraint =>
+              disjunction.add(constraint.asInstanceOf[LBJPropositionalConstraint])
+            })
+
+            processConstraints(
+              disjunction,
+              instanceVariableMap,
+              factorGraph,
+              factors,
+              variables,
+              isTopLevel = isTopLevel
+            )
+          }
+        } else if (c.getM == c.size() - 1) {
+          // Treat this as a disjunction of conjunctions
+          val childConstraints = c.getChildren
+          val innerConjunctions = childConstraints.combinations(c.getM)
+            .map(childSubset => {
+              if (childSubset.length == 1) {
+                childSubset.head.asInstanceOf[LBJPropositionalConstraint]
+              } else {
+                val conjunction = new PropositionalConjunction(
+                  childSubset.head.asInstanceOf[LBJPropositionalConstraint],
+                  childSubset(1).asInstanceOf[LBJPropositionalConstraint]
+                )
+
+                childSubset.drop(2).foreach(c => conjunction.add(c.asInstanceOf[LBJPropositionalConstraint]))
+
+                conjunction
+              }
+            }).toArray
+
+          if (innerConjunctions.length == 1) {
+            processConstraints(
+              innerConjunctions.head,
+              instanceVariableMap,
+              factorGraph,
+              factors,
+              variables,
+              isTopLevel = isTopLevel
+            )
+          } else {
+            val outerDisjunction = new PropositionalDisjunction(
+              innerConjunctions.head,
+              innerConjunctions(1)
+            )
+            innerConjunctions.drop(2).foreach(c => outerDisjunction.add(c))
+            processConstraints(
+              innerConjunctions.head,
+              instanceVariableMap,
+              factorGraph,
+              factors,
+              variables,
+              isTopLevel = isTopLevel
+            )
+          }
+        } else {
+          //          val variablesWithStates = c.getChildren
+          //            .map({ childConstraint: LBJConstraint =>
+          //              processConstraints(
+          //                childConstraint,
+          //                instanceVariableMap,
+          //                factors,
+          //                variables,
+          //                isTopLevel = false
+          //              ).get
+          //            })
+          //
+          //          val totalConstraints = variablesWithStates.length
+          logger.info(s"Atleast ${c.getM} of ${c.size()} - $isTopLevel")
+          logger.error("PropositionalAtLeast - Not supported yet.")
+        }
 
         //          // Budget factor evaluates as <= budget
         //          val factor = factorGraph.createFactorBUDGET(

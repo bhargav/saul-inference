@@ -272,7 +272,8 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
           } else {
             val disjunction = new PropositionalDisjunction(
               childConstraints.head.asInstanceOf[LBJPropositionalConstraint],
-              childConstraints(1).asInstanceOf[LBJPropositionalConstraint])
+              childConstraints(1).asInstanceOf[LBJPropositionalConstraint]
+            )
 
             childConstraints.drop(2).foreach({ constraint: LBJConstraint =>
               disjunction.add(constraint.asInstanceOf[LBJPropositionalConstraint])
@@ -329,18 +330,18 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
           }
 
         } else {
-//          val variablesWithStates = c.getChildren
-//            .map({ childConstraint: LBJConstraint =>
-//              processConstraints(
-//                childConstraint,
-//                instanceVariableMap,
-//                factors,
-//                variables,
-//                isTopLevel = false
-//              ).get
-//            })
-//
-//          val totalConstraints = variablesWithStates.length
+          //          val variablesWithStates = c.getChildren
+          //            .map({ childConstraint: LBJConstraint =>
+          //              processConstraints(
+          //                childConstraint,
+          //                instanceVariableMap,
+          //                factors,
+          //                variables,
+          //                isTopLevel = false
+          //              ).get
+          //            })
+          //
+          //          val totalConstraints = variablesWithStates.length
 
           logger.error("PropositionalAtLeast - Not supported yet.")
         }
