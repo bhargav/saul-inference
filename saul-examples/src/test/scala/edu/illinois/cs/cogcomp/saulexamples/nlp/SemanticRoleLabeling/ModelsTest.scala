@@ -49,7 +49,7 @@ class ModelsTest extends FlatSpec with Matchers {
 
   //TODO fix the issue with OjAlgo, and un-ignore this
   "L+I argument type classifier (cTr)" should "work." ignore {
-    ClassifierUtils.LoadClassifier(SRLConfigurator.SRL_JAR_MODEL_PATH.value + "/models_cTr/", argumentTypeLearner)
+    ClassifierUtils.LoadClassifier(SRLscalaConfigurator.SRL_JAR_MODEL_PATH.value + "/models_cTr/", argumentTypeLearner)
     val scores = ArgTypeConstrainedClassifier.test(exclude = "candidate")
     scores.perLabel.foreach { resultPerLabel =>
       resultPerLabel.label match {
