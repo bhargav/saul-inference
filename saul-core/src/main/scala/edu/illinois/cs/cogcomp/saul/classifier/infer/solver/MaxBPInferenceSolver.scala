@@ -149,8 +149,9 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
         val binaryVariable = instanceVariableMap((c.getClassifier, c.getPrediction, c.getExample))
 
         if (isTopLevel) {
-          // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
-          // binaryVariable.setLogPotential(maxLogPotential)
+          // Free Variables in the top-level conjunction are treated as grounded variables.
+          val unaryFactor = FactorUtils.getUnaryFactor(binaryVariable)
+          factors += unaryFactor
         }
 
         // XXX - Verify this.
@@ -227,9 +228,11 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
             })
 
           if (isTopLevel) {
-            // XXX - Set the final output variable to true
+            // Set the final output variable to true
+            val unaryFactor = FactorUtils.getUnaryFactor(outputVariableWithState)
+            factors += unaryFactor
           } else {
-            // logger.info("Non-toplevel disjunction")
+            //             logger.info("Non-toplevel disjunction")
           }
 
           Some(outputVariableWithState)
@@ -244,8 +247,9 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
           val binaryVariable = instanceVariableMap((childVariable.getClassifier, childVariable.getPrediction, childVariable.getExample))
 
           if (isTopLevel) {
-            // XXX - Free Variables in the top-level conjunction are treated as grounded variables.
-            // binaryVariable.setLogPotential(-maxLogPotential)
+            // Free Variables in the top-level conjunction are treated as grounded variables.
+            val unaryFactor = FactorUtils.getUnaryFactor((binaryVariable._1, !binaryVariable._2))
+            factors += unaryFactor
           }
 
           // XXX - Verify this
@@ -343,6 +347,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
           //
           //          val totalConstraints = variablesWithStates.length
 
+          // XXX - Not implemented yet.
           logger.error("PropositionalAtLeast - Not supported yet.")
         }
 
