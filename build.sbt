@@ -65,7 +65,9 @@ lazy val commonSettings = Seq(
     ccgGroupId % "illinois-inference" % cogcompNLPVersion withSources,
     "com.gurobi" % "gurobi" % "7.0.1",
     "edu.cmu.cs.ark" % "ad3-jni" % "2.0.1-SNAPSHOT",
+    "edu.cmu.cs.ark" % "ad3-natives" % "2.0.1-SNAPSHOT", // Native libraries for AD3
     "srmp" % "srmp-jni" % "1.0.1-SNAPSHOT",
+    "srmp" % "srmp-natives" % "1.0.1-SNAPSHOT", // Native libraries for SRMP
     "cc.factorie" %% "factorie" % "1.2",
     "org.apache.commons" % "commons-math3" % "3.6.1",
     "org.scalatest" %% "scalatest" % "2.2.4",

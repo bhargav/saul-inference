@@ -124,25 +124,26 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   def apply(instances: Iterable[InstanceType], progressPeriod: Int = 0): Map[InstanceType, String] = {
     val instanceLabelMap = new mutable.HashMap[InstanceType, String]()
 
-    instances.zipWithIndex.foreach({ case (instance, idx) =>
-      if (progressPeriod > 0 && idx % progressPeriod == 0) {
-        logger.info(s"Processed $idx instances.")
-      }
-
-      if (!instanceLabelMap.contains(instance)) {
-        val headInstance = findHead(instance)
-
-        if (headInstance.isEmpty) {
-          instanceLabelMap.put(instance, onClassifier.classifier.discreteValue(instance))
-        } else {
-          val assignments = build(headInstance.get, instance)
-          val finalAssignment = assignments.find(_.learner == onClassifier).get
-          finalAssignment.foreach({
-            case (scoredInstance: Any, scoreset: ScoreSet) =>
-              instanceLabelMap.put(scoredInstance.asInstanceOf[InstanceType], scoreset.highScoreValue())
-          })
+    instances.zipWithIndex.foreach({
+      case (instance, idx) =>
+        if (progressPeriod > 0 && idx % progressPeriod == 0) {
+          logger.info(s"Processed $idx instances.")
         }
-      }
+
+        if (!instanceLabelMap.contains(instance)) {
+          val headInstance = findHead(instance)
+
+          if (headInstance.isEmpty) {
+            instanceLabelMap.put(instance, onClassifier.classifier.discreteValue(instance))
+          } else {
+            val assignments = build(headInstance.get, instance)
+            val finalAssignment = assignments.find(_.learner == onClassifier).get
+            finalAssignment.foreach({
+              case (scoredInstance: Any, scoreset: ScoreSet) =>
+                instanceLabelMap.put(scoredInstance.asInstanceOf[InstanceType], scoreset.highScoreValue())
+            })
+          }
+        }
     })
 
     instanceLabelMap.toMap
