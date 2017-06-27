@@ -43,6 +43,7 @@ object SRLSensors extends Logging {
   def textAnnotationToRelation(ta: TextAnnotation): List[Relation] = {
     ta.getView(ViewNames.SRL_VERB).getRelations.toList
   }
+
   def textAnnotationToRelationMatch(ta: TextAnnotation, r: Relation): Boolean = {
     (ta.getCorpusId + ":" + ta.getId).matches(r.getSource.getTextAnnotation.getCorpusId + ":" + r.getSource.getTextAnnotation.getId)
   }
