@@ -17,14 +17,14 @@ object SRMPFactorUtils {
       }
     } else {
       (leftVariableState, rightVariableState, outputVariableState.get) match {
-        case (true, true, true) => Array(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0)
-        case (true, true, false) => Array(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0)
-        case (true, false, true) => Array(0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0)
-        case (true, false, false) => Array(0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0)
-        case (false, true, true) => Array(0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0)
-        case (false, true, false) => Array(0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        case (false, false, true) => Array(0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        case (false, false, false) => Array(-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        case (true, true, true) => Array(-1.0, 0.0, -1.0, 0.0, -1.0, 0.0, 0.0, -1.0)
+        case (true, true, false) => Array(0.0, -1.0, 0.0, -1.0, 0.0, -1.0, -1.0, 0.0)
+        case (true, false, true) => Array(-1.0, 0.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0)
+        case (true, false, false) => Array(0.0, -1.0, 0.0, -1.0, -1.0, 0.0, 0.0, -1.0)
+        case (false, true, true) => Array(-1.0, 0.0, 0.0, -1.0, -1.0, 0.0, -1.0, 0.0)
+        case (false, true, false) => Array(0.0, -1.0, -1.0, 0.0, 0.0, -1.0, 0.0, -1.0)
+        case (false, false, true) => Array(0.0, -1.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0)
+        case (false, false, false) => Array(-1.0, 0.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0)
       }
     }
   }
@@ -39,14 +39,14 @@ object SRMPFactorUtils {
       }
     } else {
       (leftVariableState, rightVariableState, outputVariableState.get) match {
-        case (true, true, true) => Array(0.0, 0.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0)
-        case (true, true, false) => Array(0.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0)
-        case (true, false, true) => Array(0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, -1.0)
-        case (true, false, false) => Array(-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, -1.0, 0.0)
-        case (false, true, true) => Array(0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0)
-        case (false, true, false) => Array(-1.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0)
-        case (false, false, true) => Array(0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, 0.0)
-        case (false, false, false) => Array(-1.0, 0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0)
+        case (true, true, true) => Array(-1.0, 0.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0)
+        case (true, true, false) => Array(0.0, -1.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0)
+        case (true, false, true) => Array(0.0, -1.0, -1.0, 0.0, 0.0, -1.0, 0.0, -1.0)
+        case (true, false, false) => Array(-1.0, 0.0, 0.0, -1.0, -1.0, 0.0, -1.0, 0.0)
+        case (false, true, true) => Array(0.0, -1.0, 0.0, -1.0, -1.0, 0.0, 0.0, -1.0)
+        case (false, true, false) => Array(-1.0, 0.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0)
+        case (false, false, true) => Array(0.0, -1.0, 0.0, -1.0, 0.0, -1.0, -1.0, 0.0)
+        case (false, false, false) => Array(-1.0, 0.0, -1.0, 0.0, -1.0, 0.0, 0.0, -1.0)
       }
     }
   }
