@@ -47,7 +47,7 @@ class SRLMultiGraphDataModel(val parseViewName: String = SRLscalaConfigurator.SR
   // Sensors
 
   sentencesToTokens.addSensor(CommonSensors.textAnnotationToTokens _)
-  sentencesToRelations.addSensor(textAnnotationToRelation _)
+  // sentencesToRelations.addSensor(textAnnotationToRelation _)
 
   sentencesToRelations.addSensor(textAnnotationToRelationMatch _)
   relationsToArguments.addSensor(relToArgument _)

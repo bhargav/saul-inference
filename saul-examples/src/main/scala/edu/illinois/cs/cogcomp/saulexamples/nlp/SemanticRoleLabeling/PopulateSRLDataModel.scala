@@ -59,6 +59,12 @@ object PopulateSRLDataModel extends Logging {
       case ViewNames.PARSE_STANFORD => ClauseViewGenerator.STANFORD
     }
 
+    /**
+      * Add required views to the text annotations and filter out failed text annotations.
+      *
+      * @param taAll Input text annotations.
+      * @return Text annotations with required views populated.s
+      */
     def addViewAndFilter(taAll: Iterable[TextAnnotation]): Iterable[TextAnnotation] = {
       taAll.flatMap({ ta =>
         try {
@@ -93,35 +99,45 @@ object PopulateSRLDataModel extends Logging {
       logger.debug(s"Number of $readerType data arguments: $numArguments")
     }
 
+    /**
+      * Adds a single Text Annotation to the DataModel graph.
+      *
+      * @param a Text Annotation instance to add to the graph.s
+      * @param isTrainingInstance Boolean indicating if the instance is a training instance.s
+      */
     def populateDocument(a: TextAnnotation, isTrainingInstance: Boolean): Unit = {
       // Data Model graph for a single sentence
-      val gr = new SRLMultiGraphDataModel(parseViewName)
+      val singletonGraph = new SRLMultiGraphDataModel(parseViewName)
+
+      // Populate the sentence node.
+      // Note: This does not populate the relation/predicates/arguments node  s.
+      singletonGraph.sentences.populate(Seq(a), train = isTrainingInstance)
 
       if (!useGoldPredicate) {
-        gr.sentences.populate(Seq(a), train = isTrainingInstance)
 
-        val predicateTrainCandidates = (gr.sentences(a) ~> gr.sentencesToTokens).collect({
-          case x: Constituent if gr.posTag(x).startsWith("VB") => x.cloneForNewView(ViewNames.SRL_VERB)
+
+        val predicateTrainCandidates = (singletonGraph.sentences(a) ~> singletonGraph.sentencesToTokens).collect({
+          case x: Constituent if singletonGraph.posTag(x).startsWith("VB") => x.cloneForNewView(ViewNames.SRL_VERB)
         })
 
-        gr.predicates.populate(predicateTrainCandidates, train = isTrainingInstance)
+        singletonGraph.predicates.populate(predicateTrainCandidates, train = isTrainingInstance)
       } else {
-        gr.sentences.populate(Seq(a), train = isTrainingInstance)
+        singletonGraph.sentences.populate(Seq(a), train = isTrainingInstance)
       }
-      logger.debug("gold relations for this train:" + (gr.sentences(a) ~> gr.sentencesToRelations).size)
+      logger.debug("gold relations for this train:" + (singletonGraph.sentences(a) ~> singletonGraph.sentencesToRelations).size)
 
       if (!useGoldArgBoundaries) {
-        val XuPalmerCandidateArgsTraining = (gr.sentences(a) ~> gr.sentencesToRelations ~> gr.relationsToPredicates).flatMap({
-          x => xuPalmerCandidate(x, (gr.sentences(x.getTextAnnotation) ~> gr.sentencesToStringTree).head)
+        val XuPalmerCandidateArgsTraining = (singletonGraph.sentences(a) ~> singletonGraph.sentencesToRelations ~> singletonGraph.relationsToPredicates).flatMap({
+          x => xuPalmerCandidate(x, (singletonGraph.sentences(x.getTextAnnotation) ~> singletonGraph.sentencesToStringTree).head)
         })
 
-        gr.relations.populate(XuPalmerCandidateArgsTraining, train = isTrainingInstance)
+        singletonGraph.relations.populate(XuPalmerCandidateArgsTraining, train = isTrainingInstance)
       }
 
-      logger.debug("all relations for this test:" + (gr.sentences(a) ~> gr.sentencesToRelations).size)
+      logger.debug("all relations for this test:" + (singletonGraph.sentences(a) ~> singletonGraph.sentencesToRelations).size)
 
-      SRLClassifiers.SRLDataModel.addFromModel(gr)
-      if (gr.sentences().size % 1000 == 0) logger.info("loaded graphs in memory:" + gr.sentences().size)
+      SRLClassifiers.SRLDataModel.addFromModel(singletonGraph)
+      if (singletonGraph.sentences().size % 1000 == 0) logger.info("loaded graphs in memory:" + singletonGraph.sentences().size)
     }
 
     if (!testOnly) {
