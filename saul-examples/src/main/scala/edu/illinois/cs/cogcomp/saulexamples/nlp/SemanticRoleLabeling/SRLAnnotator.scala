@@ -13,11 +13,11 @@ import edu.illinois.cs.cogcomp.core.utilities.configuration.ResourceManager
 import edu.illinois.cs.cogcomp.edison.annotators.ClauseViewGenerator
 import edu.illinois.cs.cogcomp.nlp.corpusreaders.AbstractSRLAnnotationReader
 import edu.illinois.cs.cogcomp.saul.classifier.ClassifierUtils
-import edu.illinois.cs.cogcomp.saulexamples.nlp.CommonSensors
 import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifiers.SRLDataModel
 
 import scala.collection.JavaConverters._
 
+// XXX Add runtime configuration
 class SRLAnnotatorConfigurator extends AnnotatorConfigurator
 
 class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: ResourceManager = new SRLAnnotatorConfigurator().getDefaultConfig)
@@ -101,17 +101,13 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
   private def getPredicates(ta: TextAnnotation): Iterable[Constituent] = {
     SRLDataModel.clearInstances()
 
-    SRLDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
-    SRLDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
-    SRLDataModel.stringTree.populate(Seq(SRLSensors.textAnnotationToStringTree(ta)), train = false, populateEdge = false)
-
     // Filter only verbs as candidates to the predicate classifier
     val predicateCandidates = ta.getView(ViewNames.POS)
       .getConstituents
       .asScala
       .filter(_.getLabel.startsWith("VB"))
       .map(_.cloneForNewView(getViewName))
-    SRLDataModel.predicates.populate(predicateCandidates, train = false, populateEdge = false)
+    SRLDataModel.predicates.populate(predicateCandidates, train = false)
 
     predicateCandidates.filter(SRLClassifiers.predicateClassifier(_) == "true").map({ candidate: Constituent =>
       candidate.cloneForNewViewWithDestinationLabel(getViewName, "Predicate")
@@ -128,26 +124,25 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     val stringTree = SRLSensors.textAnnotationToStringTree(ta)
 
     // Prevent duplicate clearing of graphs.
-    SRLDataModel.sentences.populate(Seq(ta), train = false, populateEdge = false)
-    SRLDataModel.tokens.populate(CommonSensors.textAnnotationToTokens(ta), train = false, populateEdge = false)
-    SRLDataModel.stringTree.populate(Seq(stringTree), train = false, populateEdge = false)
-    SRLDataModel.predicates.populate(Seq(predicate), train = false, populateEdge = false)
+    SRLDataModel.sentences.populate(Seq(ta), train = false)
 
     val candidateRelations = SRLSensors.xuPalmerCandidate(predicate, stringTree)
-    SRLDataModel.arguments.populate(candidateRelations.map(_.getTarget), train = false)
     SRLDataModel.relations.populate(candidateRelations, train = false)
 
     val finalRelationList = candidateRelations.filter({ candidate: Relation =>
       SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
     })
 
-    SRLDataModel.arguments.clear()
-    SRLDataModel.arguments.populate(finalRelationList.map(_.getTarget), train = false)
+    // Re-create graph if the size of candidates are different after filtering
+    if (finalRelationList.size != candidateRelations.size) {
+      SRLDataModel.clearInstances()
 
-    SRLDataModel.relations.clear()
-    SRLDataModel.relations.populate(finalRelationList, train = false)
+      // Prevent duplicate clearing of graphs.
+      SRLDataModel.sentences.populate(Seq(ta), train = false)
+      SRLDataModel.relations.populate(finalRelationList, train = false)
+    }
 
-    finalRelationList.flatMap({ relation: Relation =>
+    candidateRelations.flatMap({ relation: Relation =>
       val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
       if (label == "candidate")
         None
