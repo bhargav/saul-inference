@@ -6,6 +6,7 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer.factorgraph
 
+import cc.factorie.DenseTensor1
 import cc.factorie.model._
 
 object FactorUtils {
@@ -51,5 +52,21 @@ object FactorUtils {
         case (false, false, false) => PairDisjunctionUtils.family2WithOutputNNN.Factor(leftVariable._1, rightVariable._1, outputVariable.get._1)
       }
     }
+  }
+
+  def getUnaryFactor(variableWithState: (BinaryRandomVariable, Boolean)): Factor = {
+    val family = new DotTemplateWithStatistics1[BinaryRandomVariable] with Parameters {
+      val weights = Weights(new DenseTensor1(2))
+    }
+
+    if (variableWithState._2) {
+      family.weights.value(1) = 1.0
+      family.weights.value(0) = -1.0
+    } else {
+      family.weights.value(1) = -1.0
+      family.weights.value(0) = 1.0
+    }
+
+    family.Factor(variableWithState._1)
   }
 }

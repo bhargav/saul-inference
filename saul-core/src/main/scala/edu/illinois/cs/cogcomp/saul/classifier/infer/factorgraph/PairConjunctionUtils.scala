@@ -66,9 +66,9 @@ private[factorgraph] object PairConjunctionUtils {
   val family2WithOutputPPP = new DotFamilyWithStatistics3[BinaryRandomVariable, BinaryRandomVariable, BinaryRandomVariable] {
 
     private val weightsValue = new DenseTensor3(2, 2, 2)
-    weightsValue.update(0, 0, 0, Double.NegativeInfinity)
-    weightsValue.update(0, 1, 0, Double.NegativeInfinity)
-    weightsValue.update(1, 0, 0, Double.NegativeInfinity)
+    weightsValue.update(0, 0, 0, 1.0)
+    weightsValue.update(0, 1, 0, 1.0)
+    weightsValue.update(1, 0, 0, 1.0)
     weightsValue.update(1, 1, 0, Double.NegativeInfinity)
     weightsValue.update(0, 0, 1, Double.NegativeInfinity)
     weightsValue.update(0, 1, 1, Double.NegativeInfinity)
@@ -88,9 +88,9 @@ private[factorgraph] object PairConjunctionUtils {
     weightsValue.update(0, 1, 0, Double.NegativeInfinity)
     weightsValue.update(1, 0, 0, Double.NegativeInfinity)
     weightsValue.update(1, 1, 0, 1.0)
-    weightsValue.update(0, 0, 1, Double.NegativeInfinity)
-    weightsValue.update(0, 1, 1, Double.NegativeInfinity)
-    weightsValue.update(1, 0, 1, Double.NegativeInfinity)
+    weightsValue.update(0, 0, 1, 1.0)
+    weightsValue.update(0, 1, 1, 1.0)
+    weightsValue.update(1, 0, 1, 1.0)
     weightsValue.update(1, 1, 1, Double.NegativeInfinity)
 
     override def weights: Weights3 = new ConstantWeights3(weightsValue)
@@ -102,10 +102,10 @@ private[factorgraph] object PairConjunctionUtils {
   val family2WithOutputPNP = new DotFamilyWithStatistics3[BinaryRandomVariable, BinaryRandomVariable, BinaryRandomVariable] {
 
     private val weightsValue = new DenseTensor3(2, 2, 2)
-    weightsValue.update(0, 0, 0, Double.NegativeInfinity)
-    weightsValue.update(0, 1, 0, Double.NegativeInfinity)
+    weightsValue.update(0, 0, 0, 1.0)
+    weightsValue.update(0, 1, 0, 1.0)
     weightsValue.update(1, 0, 0, Double.NegativeInfinity)
-    weightsValue.update(1, 1, 0, Double.NegativeInfinity)
+    weightsValue.update(1, 1, 0, 1.0)
     weightsValue.update(0, 0, 1, Double.NegativeInfinity)
     weightsValue.update(0, 1, 1, Double.NegativeInfinity)
     weightsValue.update(1, 0, 1, 1.0)
@@ -124,10 +124,10 @@ private[factorgraph] object PairConjunctionUtils {
     weightsValue.update(0, 1, 0, Double.NegativeInfinity)
     weightsValue.update(1, 0, 0, 1.0)
     weightsValue.update(1, 1, 0, Double.NegativeInfinity)
-    weightsValue.update(0, 0, 1, Double.NegativeInfinity)
-    weightsValue.update(0, 1, 1, Double.NegativeInfinity)
+    weightsValue.update(0, 0, 1, 1.0)
+    weightsValue.update(0, 1, 1, 1.0)
     weightsValue.update(1, 0, 1, Double.NegativeInfinity)
-    weightsValue.update(1, 1, 1, Double.NegativeInfinity)
+    weightsValue.update(1, 1, 1, 1.0)
 
     override def weights: Weights3 = new ConstantWeights3(weightsValue)
 
@@ -138,10 +138,10 @@ private[factorgraph] object PairConjunctionUtils {
   val family2WithOutputNPP = new DotFamilyWithStatistics3[BinaryRandomVariable, BinaryRandomVariable, BinaryRandomVariable] {
 
     private val weightsValue = new DenseTensor3(2, 2, 2)
-    weightsValue.update(0, 0, 0, Double.NegativeInfinity)
+    weightsValue.update(0, 0, 0, 1.0)
     weightsValue.update(0, 1, 0, Double.NegativeInfinity)
-    weightsValue.update(1, 0, 0, Double.NegativeInfinity)
-    weightsValue.update(1, 1, 0, Double.NegativeInfinity)
+    weightsValue.update(1, 0, 0, 1.0)
+    weightsValue.update(1, 1, 0, 1.0)
     weightsValue.update(0, 0, 1, Double.NegativeInfinity)
     weightsValue.update(0, 1, 1, 1.0)
     weightsValue.update(1, 0, 1, Double.NegativeInfinity)
@@ -160,10 +160,10 @@ private[factorgraph] object PairConjunctionUtils {
     weightsValue.update(0, 1, 0, 1.0)
     weightsValue.update(1, 0, 0, Double.NegativeInfinity)
     weightsValue.update(1, 1, 0, Double.NegativeInfinity)
-    weightsValue.update(0, 0, 1, Double.NegativeInfinity)
+    weightsValue.update(0, 0, 1, 1.0)
     weightsValue.update(0, 1, 1, Double.NegativeInfinity)
-    weightsValue.update(1, 0, 1, Double.NegativeInfinity)
-    weightsValue.update(1, 1, 1, Double.NegativeInfinity)
+    weightsValue.update(1, 0, 1, 1.0)
+    weightsValue.update(1, 1, 1, 1.0)
 
     override def weights: Weights3 = new ConstantWeights3(weightsValue)
 
@@ -175,9 +175,9 @@ private[factorgraph] object PairConjunctionUtils {
 
     private val weightsValue = new DenseTensor3(2, 2, 2)
     weightsValue.update(0, 0, 0, Double.NegativeInfinity)
-    weightsValue.update(0, 1, 0, Double.NegativeInfinity)
-    weightsValue.update(1, 0, 0, Double.NegativeInfinity)
-    weightsValue.update(1, 1, 0, Double.NegativeInfinity)
+    weightsValue.update(0, 1, 0, 1.0)
+    weightsValue.update(1, 0, 0, 1.0)
+    weightsValue.update(1, 1, 0, 1.0)
     weightsValue.update(0, 0, 1, 1.0)
     weightsValue.update(0, 1, 1, Double.NegativeInfinity)
     weightsValue.update(1, 0, 1, Double.NegativeInfinity)
@@ -197,9 +197,9 @@ private[factorgraph] object PairConjunctionUtils {
     weightsValue.update(1, 0, 0, Double.NegativeInfinity)
     weightsValue.update(1, 1, 0, Double.NegativeInfinity)
     weightsValue.update(0, 0, 1, Double.NegativeInfinity)
-    weightsValue.update(0, 1, 1, Double.NegativeInfinity)
-    weightsValue.update(1, 0, 1, Double.NegativeInfinity)
-    weightsValue.update(1, 1, 1, Double.NegativeInfinity)
+    weightsValue.update(0, 1, 1, 1.0)
+    weightsValue.update(1, 0, 1, 1.0)
+    weightsValue.update(1, 1, 1, 1.0)
 
     override def weights: Weights3 = new ConstantWeights3(weightsValue)
 

@@ -150,7 +150,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
           // Top-Level conjunction does not need to be enforced with a factor.
           None
         } else {
-//          logger.info("Non-toplevel conjunction")
+          //          logger.info("Non-toplevel conjunction")
           val outputVariable = factorGraph.createBinaryVariable()
           val factor = factorGraph.createFactorANDOUT(
             variablesWithStates.map(_._1) :+ outputVariable,
@@ -188,7 +188,7 @@ final class AD3InferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceSol
           factors += factor
           None
         } else {
-//          logger.info("Non-toplevel disjunction")
+          //          logger.info("Non-toplevel disjunction")
           val outputVariable = factorGraph.createBinaryVariable()
 
           val factor = factorGraph.createFactorOROUT(
