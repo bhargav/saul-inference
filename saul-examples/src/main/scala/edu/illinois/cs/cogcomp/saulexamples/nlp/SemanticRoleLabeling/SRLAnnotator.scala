@@ -9,7 +9,7 @@ package edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling
 import edu.illinois.cs.cogcomp.annotation.{ Annotator, AnnotatorConfigurator, AnnotatorException }
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
 import edu.illinois.cs.cogcomp.core.datastructures.textannotation._
-import edu.illinois.cs.cogcomp.core.utilities.configuration.ResourceManager
+import edu.illinois.cs.cogcomp.core.utilities.configuration.{ Configurator, Property, ResourceManager }
 import edu.illinois.cs.cogcomp.edison.annotators.ClauseViewGenerator
 import edu.illinois.cs.cogcomp.nlp.corpusreaders.AbstractSRLAnnotationReader
 import edu.illinois.cs.cogcomp.saul.classifier.ClassifierUtils
@@ -17,15 +17,40 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.SemanticRoleLabeling.SRLClassifi
 
 import scala.collection.JavaConverters._
 
-// XXX Add runtime configuration
-class SRLAnnotatorConfigurator extends AnnotatorConfigurator
+class SRLAnnotatorConfigurator extends AnnotatorConfigurator {
+  override def getDefaultConfig: ResourceManager = {
+    val props = Array[Property](
+      SRLAnnotatorConfigurator.USE_PREDICATE_CLASSIFIER,
+      SRLAnnotatorConfigurator.USE_ARGUMENT_IDENTIFIER,
+      SRLAnnotatorConfigurator.USE_VERB_SENSE_CLASSIFIER,
+      SRLAnnotatorConfigurator.PARSE_VIEW
+    )
+
+    val defaultRm = super.getDefaultConfig
+    Configurator.mergeProperties(defaultRm, new ResourceManager(generateProperties(props)))
+  }
+}
+
+object SRLAnnotatorConfigurator {
+  // Use the predicate classifier if true else use all verbs as predicates
+  val USE_PREDICATE_CLASSIFIER = new Property("usePredicateClassifier", Configurator.TRUE)
+
+  // Boolean denoting if we should perform Binary Argument Identification
+  val USE_ARGUMENT_IDENTIFIER = new Property("useArgumentIdentifier", Configurator.TRUE)
+
+  // Verb Sense Classifier is not trained currently.
+  val USE_VERB_SENSE_CLASSIFIER = new Property("useVerbSenseClassifier", Configurator.FALSE)
+
+  // Constituency Parse view to use for feature extraction
+  val PARSE_VIEW = new Property("parseView", ViewNames.PARSE_STANFORD)
+}
 
 class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: ResourceManager = new SRLAnnotatorConfigurator().getDefaultConfig)
-  extends Annotator(finalViewName, SRLAnnotator.requiredViews, resourceManager) {
+  extends Annotator(finalViewName, SRLAnnotator.requiredViews :+ resourceManager.getString(SRLAnnotatorConfigurator.PARSE_VIEW), resourceManager) {
   val requiredViewSet: Set[String] = getRequiredViews.toSet
 
   lazy val clauseViewGenerator: ClauseViewGenerator = {
-    SRLscalaConfigurator.SRL_PARSE_VIEW match {
+    resourceManager.getString(SRLAnnotatorConfigurator.PARSE_VIEW) match {
       case ViewNames.PARSE_GOLD => new ClauseViewGenerator(ViewNames.PARSE_GOLD, "CLAUSES_GOLD")
       case ViewNames.PARSE_STANFORD => ClauseViewGenerator.STANFORD
     }
@@ -59,8 +84,7 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
         .headOption
         .orElse(ta.getView(ViewNames.TOKENS).getConstituentsCovering(predicate).asScala.headOption)
 
-      // TODO - Need to train a Predicate Sense identifier.
-      predicate.addAttribute(AbstractSRLAnnotationReader.SenseIdentifier, "01")
+      predicate.addAttribute(AbstractSRLAnnotationReader.SenseIdentifier, "XX")
       predicate.addAttribute(AbstractSRLAnnotationReader.LemmaIdentifier, lemmaOrToken.map(_.getLabel).getOrElse(""))
     })
 
@@ -99,19 +123,23 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     * @return Constituents that are not attached to any view yet.
     */
   private def getPredicates(ta: TextAnnotation): Iterable[Constituent] = {
-    SRLDataModel.clearInstances()
-
     // Filter only verbs as candidates to the predicate classifier
     val predicateCandidates = ta.getView(ViewNames.POS)
       .getConstituents
       .asScala
       .filter(_.getLabel.startsWith("VB"))
       .map(_.cloneForNewView(getViewName))
-    SRLDataModel.predicates.populate(predicateCandidates, train = false)
 
-    predicateCandidates.filter(SRLClassifiers.predicateClassifier(_) == "true").map({ candidate: Constituent =>
-      candidate.cloneForNewViewWithDestinationLabel(getViewName, "Predicate")
-    })
+    if (resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_PREDICATE_CLASSIFIER)) {
+      SRLDataModel.clearInstances()
+      SRLDataModel.predicates.populate(predicateCandidates, train = false)
+
+      predicateCandidates.filter(SRLClassifiers.predicateClassifier(_) == "true").map({ candidate: Constituent =>
+        candidate.cloneForNewViewWithDestinationLabel(getViewName, "Predicate")
+      })
+    } else {
+      predicateCandidates
+    }
   }
 
   /** @param ta Input Text Annotation instance.
@@ -121,28 +149,36 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
   private def getArguments(ta: TextAnnotation, predicate: Constituent): Iterable[Relation] = {
     SRLDataModel.clearInstances()
 
-    val stringTree = SRLSensors.textAnnotationToStringTree(ta)
-
     // Prevent duplicate clearing of graphs.
     SRLDataModel.sentences.populate(Seq(ta), train = false)
+
+    val stringTree = (SRLDataModel.sentences(ta) ~> SRLDataModel.sentencesToStringTree).head
 
     val candidateRelations = SRLSensors.xuPalmerCandidate(predicate, stringTree)
     SRLDataModel.relations.populate(candidateRelations, train = false)
 
-    val finalRelationList = candidateRelations.filter({ candidate: Relation =>
-      SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
-    })
+    val finalRelationList = {
+      if (resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_ARGUMENT_IDENTIFIER)) {
+        val filteredCandidates = candidateRelations.filter({ candidate: Relation =>
+          SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
+        })
 
-    // Re-create graph if the size of candidates are different after filtering
-    if (finalRelationList.size != candidateRelations.size) {
-      SRLDataModel.clearInstances()
+        // Re-create graph if the size of candidates are different after filtering
+        if (filteredCandidates.size != candidateRelations.size) {
+          SRLDataModel.clearInstances()
 
-      // Prevent duplicate clearing of graphs.
-      SRLDataModel.sentences.populate(Seq(ta), train = false)
-      SRLDataModel.relations.populate(finalRelationList, train = false)
+          // Prevent duplicate clearing of graphs.
+          SRLDataModel.sentences.populate(Seq(ta), train = false)
+          SRLDataModel.relations.populate(filteredCandidates, train = false)
+        }
+
+        filteredCandidates
+      } else {
+        candidateRelations
+      }
     }
 
-    candidateRelations.flatMap({ relation: Relation =>
+    finalRelationList.flatMap({ relation: Relation =>
       val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
       if (label == "candidate")
         None
@@ -153,11 +189,11 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
 }
 
 object SRLAnnotator {
+  // ParseView is added in the constructor
   private val requiredViews = Array(
     ViewNames.POS,
     ViewNames.LEMMA,
-    ViewNames.SHALLOW_PARSE,
-    SRLscalaConfigurator.SRL_PARSE_VIEW
+    ViewNames.SHALLOW_PARSE
   )
 
   private def cloneRelationWithNewLabelAndArgument(
