@@ -33,8 +33,11 @@ object SRLEvaluation extends App with Logging {
   val annotator = new SRLAnnotator(predictedViewName)
 
   val testReader = new SRLDataReader(TREEBANK_HOME, PROPBANK_HOME, TEST_SECTION, TEST_SECTION)
+
+  logger.info("Reading the dataset.")
   testReader.readData()
 
+  logger.info(s"Intializing the annotator service: USE_CURATOR = ${SRLscalaConfigurator.USE_CURATOR}")
   val usePipelineCaching = true
   val annotatorService = SRLscalaConfigurator.USE_CURATOR match {
     case true =>
@@ -53,6 +56,7 @@ object SRLEvaluation extends App with Logging {
       TextAnnotationFactory.createPipelineAnnotatorService(nonDefaultProps)
   }
 
+  logger.info("Annotating documents with pre-requisite views")
   val annotatedDocumentsPartial = testReader.textAnnotations.asScala.map({ ta =>
     try {
       annotatorService.addView(ta, ViewNames.LEMMA)
@@ -78,6 +82,7 @@ object SRLEvaluation extends App with Logging {
 
   logger.info(s"Annotation failures = ${annotatedDocumentsPartial._1.size}")
   logger.info(s"Annotation success = ${annotatedDocumentsPartial._2.size}")
+  logger.info("Starting SRL Annotation and evaluation")
 
   val identifierTester = new ClassificationTester
   val evaluator = new PredicateArgumentEvaluator
