@@ -80,8 +80,6 @@ object SRLEvaluation extends App with Logging {
     }
   }).partition(_.isEmpty)
 
-  logger.info(s"Annotation failures = ${annotatedDocumentsPartial._1.size}")
-  logger.info(s"Annotation success = ${annotatedDocumentsPartial._2.size}")
   logger.info("Starting SRL Annotation and evaluation")
 
   val identifierTester = new ClassificationTester
@@ -102,6 +100,9 @@ object SRLEvaluation extends App with Logging {
       }
     })
 
+  logger.info(s"Pipeline/Curator Annotation failures = ${annotatedDocumentsPartial._1.size}")
+  logger.info(s"Pipeline/Curator Annotation success = ${annotatedDocumentsPartial._2.size}")
+  logger.info(s"USE_CURATOR = ${SRLscalaConfigurator.USE_CURATOR}")
   logger.info(s"Documents which failed SRL Annotation = $srlAnnotationFailures")
   println(identifierTester.getPerformanceTable(true).toTextTable)
 }
