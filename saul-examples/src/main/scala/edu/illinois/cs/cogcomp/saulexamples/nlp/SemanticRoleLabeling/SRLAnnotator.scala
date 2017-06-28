@@ -22,8 +22,7 @@ class SRLAnnotatorConfigurator extends AnnotatorConfigurator {
     val props = Array[Property](
       SRLAnnotatorConfigurator.USE_PREDICATE_CLASSIFIER,
       SRLAnnotatorConfigurator.USE_ARGUMENT_IDENTIFIER,
-      SRLAnnotatorConfigurator.USE_VERB_SENSE_CLASSIFIER,
-      SRLAnnotatorConfigurator.PARSE_VIEW
+      SRLAnnotatorConfigurator.USE_VERB_SENSE_CLASSIFIER
     )
 
     val defaultRm = super.getDefaultConfig
@@ -40,17 +39,14 @@ object SRLAnnotatorConfigurator {
 
   // Verb Sense Classifier is not trained currently.
   val USE_VERB_SENSE_CLASSIFIER = new Property("useVerbSenseClassifier", Configurator.FALSE)
-
-  // Constituency Parse view to use for feature extraction
-  val PARSE_VIEW = new Property("parseView", ViewNames.PARSE_STANFORD)
 }
 
 class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: ResourceManager = new SRLAnnotatorConfigurator().getDefaultConfig)
-  extends Annotator(finalViewName, SRLAnnotator.requiredViews :+ resourceManager.getString(SRLAnnotatorConfigurator.PARSE_VIEW), resourceManager) {
+  extends Annotator(finalViewName, SRLAnnotator.requiredViews, resourceManager) {
   val requiredViewSet: Set[String] = getRequiredViews.toSet
 
   lazy val clauseViewGenerator: ClauseViewGenerator = {
-    resourceManager.getString(SRLAnnotatorConfigurator.PARSE_VIEW) match {
+    SRLscalaConfigurator.SRL_PARSE_VIEW match {
       case ViewNames.PARSE_GOLD => new ClauseViewGenerator(ViewNames.PARSE_GOLD, "CLAUSES_GOLD")
       case ViewNames.PARSE_STANFORD => ClauseViewGenerator.STANFORD
     }
@@ -189,11 +185,11 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
 }
 
 object SRLAnnotator {
-  // ParseView is added in the constructor
   private val requiredViews = Array(
     ViewNames.POS,
     ViewNames.LEMMA,
-    ViewNames.SHALLOW_PARSE
+    ViewNames.SHALLOW_PARSE,
+    SRLscalaConfigurator.SRL_PARSE_VIEW
   )
 
   private def cloneRelationWithNewLabelAndArgument(
