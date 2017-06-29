@@ -23,6 +23,9 @@ class DataModelTest extends FlatSpec with Matchers {
   val taTmp: TextAnnotation = DummyTextAnnotationGenerator.generateAnnotatedTextAnnotation(viewsToAdd, false, 1)
   sentences.populate(List(taTmp), train = false)
 
+  val relationsList = SRLSensors.textAnnotationToRelation(taTmp)
+  relations.populate(relationsList, train = false)
+
   "graph population" should "be correct" in {
     sentences().size should be(1)
     sentences().head.getText.trim should be("The construction of the John Smith library finished on time .")
