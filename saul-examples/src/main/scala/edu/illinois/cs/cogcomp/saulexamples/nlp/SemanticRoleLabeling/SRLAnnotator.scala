@@ -22,7 +22,10 @@ class SRLAnnotatorConfigurator extends AnnotatorConfigurator {
     val props = Array[Property](
       SRLAnnotatorConfigurator.USE_PREDICATE_CLASSIFIER,
       SRLAnnotatorConfigurator.USE_ARGUMENT_IDENTIFIER,
-      SRLAnnotatorConfigurator.USE_VERB_SENSE_CLASSIFIER
+      SRLAnnotatorConfigurator.USE_VERB_SENSE_CLASSIFIER,
+      SRLAnnotatorConfigurator.USE_CONSTRAINTS,
+      SRLAnnotatorConfigurator.USE_GREEDY_INFERENCE_BINARY,
+      SRLAnnotatorConfigurator.USE_GREEDY_INFERENCE_TYPE
     )
 
     val defaultRm = super.getDefaultConfig
@@ -37,8 +40,17 @@ object SRLAnnotatorConfigurator {
   // Boolean denoting if we should perform Binary Argument Identification
   val USE_ARGUMENT_IDENTIFIER = new Property("useArgumentIdentifier", Configurator.TRUE)
 
-  // Verb Sense Classifier is not trained currently.
+  // Verb Sense Classifier is not trained currently
   val USE_VERB_SENSE_CLASSIFIER = new Property("useVerbSenseClassifier", Configurator.FALSE)
+
+  // Constrained Inference
+  val USE_CONSTRAINTS = new Property("useConstraints", Configurator.TRUE)
+
+  // Use Greedy Inference at the Binary Argument Identifier
+  val USE_GREEDY_INFERENCE_BINARY = new Property("useGreedyInferenceBinary", Configurator.FALSE)
+
+  // Use Greedy Inference at the Argument Type Identifier
+  val USE_GREEDY_INFERENCE_TYPE = new Property("useGreedyInferenceType", Configurator.FALSE)
 }
 
 class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: ResourceManager = new SRLAnnotatorConfigurator().getDefaultConfig)
@@ -113,6 +125,19 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     }
 
     clauseViewGenerator.addView(ta)
+
+    // Check if the Annotator Configuration is compatible
+    val useConstraint = resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_CONSTRAINTS)
+    val useGreedyInferenceBinary = resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_GREEDY_INFERENCE_BINARY)
+    val useGreedyInferenceType = resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_GREEDY_INFERENCE_TYPE)
+
+    if (useConstraint && (useGreedyInferenceBinary || useGreedyInferenceType)) {
+      new UnsupportedOperationException("Incompatible configuration")
+    } else if (useGreedyInferenceBinary && (useConstraint || useGreedyInferenceType)) {
+      new UnsupportedOperationException("Incompatible configuration")
+    } else if (useGreedyInferenceType && (useConstraint || useGreedyInferenceBinary)) {
+      new UnsupportedOperationException("Incompatible configuration")
+    }
   }
 
   /** @param ta Input Text Annotation instance.
@@ -155,9 +180,22 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
 
     val finalRelationList = {
       if (resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_ARGUMENT_IDENTIFIER)) {
-        val filteredCandidates = candidateRelations.filter({ candidate: Relation =>
-          SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
-        })
+        val filteredCandidates = {
+          if (resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_GREEDY_INFERENCE_BINARY)) {
+            val candidatesWithScores = candidateRelations.map({
+              candidate => (candidate, SRLClassifiers.argumentXuIdentifierGivenApredicate.classifier.scores(candidate))
+            })
+
+            // Greedy No Overlap decode
+            GreedyDecoder.decodeNoOverlap(candidatesWithScores, Set("false"))
+              .filter(x => x._2.value == "true")
+              .map(_._1)
+          } else {
+            candidateRelations.filter({ candidate: Relation =>
+              SRLClassifiers.argumentXuIdentifierGivenApredicate(candidate) == "true"
+            })
+          }
+        }
 
         // Re-create graph if the size of candidates are different after filtering
         if (filteredCandidates.size != candidateRelations.size) {
@@ -174,13 +212,38 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
       }
     }
 
-    finalRelationList.flatMap({ relation: Relation =>
-      val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
-      if (label == "candidate")
-        None
-      else
-        Some(SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, getViewName))
-    })
+    if (resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_CONSTRAINTS)) {
+      finalRelationList.flatMap({ relation: Relation =>
+        val label = SRLConstrainedClassifiers.argTypeConstraintClassifier(relation)
+        if (label == "candidate")
+          None
+        else
+          Some(SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, 1.0, getViewName))
+      })
+    } else {
+      val relationWithScores = finalRelationList.map({ relation: Relation =>
+        (relation, SRLClassifiers.argumentTypeLearner.classifier.scores(relation))
+      })
+
+      if (resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_GREEDY_INFERENCE_TYPE)) {
+        GreedyDecoder.decodeNoOverlap(relationWithScores, Set("candidate"))
+          .filterNot(_._2.value == "candidate")
+          .map({
+            case (relation, score) =>
+              SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, score.value, score.score, getViewName)
+          })
+      } else {
+        relationWithScores.map({
+          case (relation, scoreset) =>
+            val label = scoreset.highScoreValue()
+            (relation, scoreset.getScore(label))
+        }).filterNot(_._2.value == "candidate")
+          .map({
+            case (relation, score) =>
+              SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, score.value, score.score, getViewName)
+          })
+      }
+    }
   }
 }
 
@@ -195,10 +258,11 @@ object SRLAnnotator {
   private def cloneRelationWithNewLabelAndArgument(
     sourceRelation: Relation,
     label: String,
+    score: Double,
     targetViewName: String
   ): Relation = {
     val newTargetConstituent = sourceRelation.getTarget.cloneForNewView(targetViewName)
-    val newRelation = new Relation(label, sourceRelation.getSource, newTargetConstituent, sourceRelation.getScore)
+    val newRelation = new Relation(label, sourceRelation.getSource, newTargetConstituent, score)
     sourceRelation.getAttributeKeys.asScala.foreach({ key: String =>
       newRelation.addAttribute(key, sourceRelation.getAttribute(key))
     })
