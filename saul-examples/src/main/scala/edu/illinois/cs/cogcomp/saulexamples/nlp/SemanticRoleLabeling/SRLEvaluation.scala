@@ -94,9 +94,9 @@ object SRLEvaluation extends App with Logging {
         annotator.addView(ta)
         evaluator.evaluate(identifierTester, ta.getView(ViewNames.SRL_VERB), ta.getView(predictedViewName))
       } catch {
-        case _: Exception =>
+        case ex: Exception =>
           srlAnnotationFailures += 1
-          logger.warn(s"SRL Annotation failed for sentence ${ta.getId}.")
+          logger.error(s"SRL Annotation failed for sentence ${ta.getId}.", ex)
       }
     })
 
