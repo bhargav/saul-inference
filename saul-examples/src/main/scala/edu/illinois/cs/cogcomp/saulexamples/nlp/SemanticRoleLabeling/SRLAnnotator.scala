@@ -215,9 +215,10 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
     if (resourceManager.getBoolean(SRLAnnotatorConfigurator.USE_CONSTRAINTS)) {
       SRLConstrainedClassifiers.ArgTypeConstrainedClassifier(finalRelationList)
         .filterNot(_._2 == "candidate")
-        .map({ case (relation: Relation, label: String) =>
-          // XXX - Get actual label score from the classifier.
-          SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, 1.0, getViewName)
+        .map({
+          case (relation: Relation, label: String) =>
+            // XXX - Get actual label score from the classifier.
+            SRLAnnotator.cloneRelationWithNewLabelAndArgument(relation, label, 1.0, getViewName)
         })
     } else {
       val relationWithScores = finalRelationList.map({ relation: Relation =>
