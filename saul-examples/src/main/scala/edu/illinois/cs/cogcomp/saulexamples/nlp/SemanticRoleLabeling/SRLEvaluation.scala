@@ -37,7 +37,7 @@ object SRLEvaluation extends App with Logging {
   logger.info("Reading the dataset.")
   testReader.readData()
 
-  logger.info(s"Intializing the annotator service: USE_CURATOR = ${SRLscalaConfigurator.USE_CURATOR}")
+  logger.info(s"Initializing the annotator service: USE_CURATOR = ${SRLscalaConfigurator.USE_CURATOR}")
   val usePipelineCaching = true
   val annotatorService = SRLscalaConfigurator.USE_CURATOR match {
     case true =>
@@ -56,11 +56,29 @@ object SRLEvaluation extends App with Logging {
       TextAnnotationFactory.createPipelineAnnotatorService(nonDefaultProps)
   }
 
+  val viewsToKeep = Set(ViewNames.TOKENS, ViewNames.SENTENCE, ViewNames.SRL_VERB)
+  logger.info("Moving existing GOLD annotation views")
+  val preProcessedDocuments = testReader.textAnnotations.asScala
+    .map({ ta =>
+      ta.getAvailableViews
+        .asScala
+        .diff(viewsToKeep)
+        .foreach({ viewName =>
+          logger.info(s"Removing view $viewName")
+          ta.removeView(viewName)
+        })
+
+      ta
+    })
+
+
   logger.info("Annotating documents with pre-requisite views")
-  val annotatedDocumentsPartial = testReader.textAnnotations.asScala.map({ ta =>
+  val annotatedDocumentsPartial = preProcessedDocuments.map({ ta =>
     try {
+      // Add new views
       annotatorService.addView(ta, ViewNames.LEMMA)
       annotatorService.addView(ta, ViewNames.SHALLOW_PARSE)
+
       if (!parseViewName.equals(ViewNames.PARSE_GOLD)) {
         annotatorService.addView(ta, ViewNames.POS)
         annotatorService.addView(ta, ViewNames.PARSE_STANFORD)
