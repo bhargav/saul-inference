@@ -27,6 +27,8 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
     val factors = new mutable.ListBuffer[Factor]()
     val variables = new mutable.ListBuffer[BinaryRandomVariable]()
 
+    val variableAssignmentConstraints = new mutable.ListBuffer[LBJPropositionalConstraint]()
+
     priorAssignment.foreach({ assignment: Assignment =>
       val labels: List[String] = assignment.learner.classifier.scores(assignment.head._1).toArray.map(_.value).toList
 
@@ -61,7 +63,7 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
             factors += family.Factor(binaryVariable)
             variables += binaryVariable
           } else {
-            val binaryVariables = labels.map({ label: String =>
+            val multiNodeVariables = labels.map({ label: String =>
 
               /* Normalized Probability Scores */
               val score = normalizedScoreset.getScore(label).score
@@ -74,24 +76,53 @@ final class MaxBPInferenceSolver[T <: AnyRef, HEAD <: AnyRef] extends InferenceS
               factors ++= family.Factor(binaryVariable)
               variables += binaryVariable
 
-              binaryVariable
+              new PropositionalVariable(assignment.learner.classifier, instance, label)
             })
 
-            // XXX - binaryVariables needs an ExactlyOne factor
-            logger.error("Convert to XOR - Unsuppported!")
+            // XXX - Find a better way to do XOR
+            // XOR is written as disjunction of (conjunctions of single true assignments)
+            val conjunctions = multiNodeVariables.indices
+              .map({ trueIdx: Int =>
+                val variableRules = multiNodeVariables.indices
+                  .map({ idx =>
+                    if (idx == trueIdx) {
+                      multiNodeVariables(idx)
+                    } else {
+                      new PropositionalNegation(multiNodeVariables(idx))
+                    }
+                  })
+
+                val conjunction = new PropositionalConjunction(variableRules.head, variableRules(1))
+                variableRules.drop(2).foreach(c => conjunction.add(c))
+                conjunction
+              })
+
+            val rootDisjunction = new PropositionalDisjunction(conjunctions.head, conjunctions(1))
+            conjunctions.drop(2).foreach(c => rootDisjunction.add(c))
+
+            variableAssignmentConstraints += rootDisjunction
           }
       })
     })
 
-    if (constraintsOpt.nonEmpty) {
-      val lbjConstraints = LBJavaILPInferenceSolver.transformToLBJConstraint(constraintsOpt.get, new mutable.HashSet[FirstOrderVariable]())
+    if (constraintsOpt.nonEmpty || variableAssignmentConstraints.nonEmpty) {
+      val lbjConstraints = new PropositionalConjunction(
+        new PropositionalConstant(true),
+        LBJavaILPInferenceSolver.transformToLBJConstraint(
+          constraintsOpt.get,
+          new mutable.HashSet[FirstOrderVariable]()
+        )
+      )
+
+      // Add other variable assignment level constraints.
+      variableAssignmentConstraints.foreach({ c: LBJPropositionalConstraint =>
+        lbjConstraints.add(c)
+      })
 
       // Using the LBJava Constraint expressions to simplify First-Order Logic
-      val propositional = {
-        lbjConstraints match {
-          case propositionalConjunction: PropositionalConjunction => propositionalConjunction.simplify(true)
-          case _ => lbjConstraints.asInstanceOf[LBJPropositionalConstraint].simplify()
-        }
+      val propositional = lbjConstraints match {
+        case propositionalConjunction: PropositionalConjunction => propositionalConjunction.simplify(true)
+        case _ => lbjConstraints.asInstanceOf[LBJPropositionalConstraint].simplify()
       }
 
       processConstraints(propositional, instanceVariableMap, factors, variables, isTopLevel = true)
