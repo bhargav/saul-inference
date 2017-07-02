@@ -6,7 +6,7 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
-import edu.illinois.cs.cogcomp.infer.ilp.{ GurobiHook, ILPSolver, OJalgoHook }
+import edu.illinois.cs.cogcomp.infer.ilp.{ BeamSearch, GurobiHook, ILPSolver, OJalgoHook }
 import edu.illinois.cs.cogcomp.lbjava.classify.ScoreSet
 import edu.illinois.cs.cogcomp.lbjava.infer.BalasHook
 import edu.illinois.cs.cogcomp.saul.classifier.infer._
@@ -20,6 +20,7 @@ sealed trait SolverType
 case object Gurobi extends SolverType
 case object OJAlgo extends SolverType
 case object Balas extends SolverType
+case object BeamSearchSolver extends SolverType
 
 class ILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](
   val ilpSolverType: SolverType,
@@ -174,6 +175,7 @@ object ILPInferenceSolver {
     case OJAlgo => new OJalgoHook()
     case Gurobi => new GurobiHook()
     case Balas => new BalasHook()
+    case BeamSearchSolver => new BeamSearch(5)
     case _ => throw new Exception("Hook not found! ")
   }
 }
