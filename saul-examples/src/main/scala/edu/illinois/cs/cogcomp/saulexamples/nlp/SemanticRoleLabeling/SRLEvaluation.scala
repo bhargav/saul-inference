@@ -85,6 +85,8 @@ object SRLEvaluation extends App with Logging {
   logger.info("Starting SRL Annotation and evaluation")
 
   val identifierTester = new ClassificationTester
+  identifierTester.ignoreLabelFromSummary("V")
+
   val evaluator = new PredicateArgumentEvaluator
 
   // Annotate with SRL Annotator
