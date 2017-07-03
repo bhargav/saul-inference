@@ -61,9 +61,10 @@ object SRLEvaluation extends App with Logging {
     try {
       annotatorService.addView(ta, ViewNames.LEMMA)
       annotatorService.addView(ta, ViewNames.SHALLOW_PARSE)
+
       if (!parseViewName.equals(ViewNames.PARSE_GOLD)) {
         annotatorService.addView(ta, ViewNames.POS)
-        annotatorService.addView(ta, ViewNames.PARSE_STANFORD)
+        annotatorService.addView(ta, parseViewName)
       }
 
       // Clean up the trees
@@ -74,8 +75,8 @@ object SRLEvaluation extends App with Logging {
 
       Some(ta)
     } catch {
-      case _: Exception =>
-        logger.warn(s"Annotation failed for sentence ${ta.getId}; removing it from the list.")
+      case ex: Exception =>
+        logger.error(s"Annotation failed for sentence ${ta.getId}; removing it from the list.", ex)
         None
     }
   }).partition(_.isEmpty)

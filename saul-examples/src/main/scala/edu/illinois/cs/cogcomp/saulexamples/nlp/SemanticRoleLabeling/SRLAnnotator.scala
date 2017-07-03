@@ -59,8 +59,9 @@ class SRLAnnotator(finalViewName: String = ViewNames.SRL_VERB, resourceManager: 
 
   lazy val clauseViewGenerator: ClauseViewGenerator = {
     SRLscalaConfigurator.SRL_PARSE_VIEW match {
-      case ViewNames.PARSE_GOLD => new ClauseViewGenerator(ViewNames.PARSE_GOLD, "CLAUSES_GOLD")
       case ViewNames.PARSE_STANFORD => ClauseViewGenerator.STANFORD
+      case ViewNames.PARSE_GOLD => new ClauseViewGenerator(ViewNames.PARSE_GOLD, "CLAUSES_GOLD")
+      case ViewNames.PARSE_CHARNIAK => new ClauseViewGenerator(ViewNames.PARSE_CHARNIAK, ViewNames.CLAUSES_CHARNIAK)
     }
   }
 
