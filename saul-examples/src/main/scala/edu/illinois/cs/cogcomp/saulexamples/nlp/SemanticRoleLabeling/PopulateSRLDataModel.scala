@@ -148,7 +148,10 @@ object PopulateSRLDataModel extends Logging {
       // Populate the classifier DataModel with this single instance graph.
       // This is done due to performance reasons while populating a big data model graph directly.
       SRLClassifiers.SRLDataModel.addFromModel(singleInstanceGraph)
-      if (singleInstanceGraph.sentences().size % 1000 == 0) logger.info("loaded graphs in memory:" + singleInstanceGraph.sentences().size)
+
+      if (SRLClassifiers.SRLDataModel.sentences().size % 1000 == 0) {
+        logger.info("loaded graphs in memory:" + SRLClassifiers.SRLDataModel.sentences().size)
+      }
     }
 
     if (!testOnly) {
