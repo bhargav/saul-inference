@@ -59,6 +59,7 @@ object PopulateSRLDataModel extends Logging {
     val clauseViewGenerator = parseViewName match {
       case ViewNames.PARSE_GOLD => new ClauseViewGenerator(parseViewName, "CLAUSES_GOLD")
       case ViewNames.PARSE_STANFORD => ClauseViewGenerator.STANFORD
+      case ViewNames.PARSE_CHARNIAK => new ClauseViewGenerator(parseViewName, ViewNames.CLAUSES_CHARNIAK)
     }
 
     /** Add required views to the text annotations and filter out failed text annotations.
@@ -71,10 +72,12 @@ object PopulateSRLDataModel extends Logging {
         try {
           annotatorService.addView(ta, ViewNames.LEMMA)
           annotatorService.addView(ta, ViewNames.SHALLOW_PARSE)
+
           if (!parseViewName.equals(ViewNames.PARSE_GOLD)) {
             annotatorService.addView(ta, ViewNames.POS)
-            annotatorService.addView(ta, ViewNames.PARSE_STANFORD)
+            annotatorService.addView(ta, parseViewName)
           }
+
           // Add a clause view (needed for the clause relative position feature)
           clauseViewGenerator.addView(ta)
 
@@ -145,7 +148,10 @@ object PopulateSRLDataModel extends Logging {
       // Populate the classifier DataModel with this single instance graph.
       // This is done due to performance reasons while populating a big data model graph directly.
       SRLClassifiers.SRLDataModel.addFromModel(singleInstanceGraph)
-      if (singleInstanceGraph.sentences().size % 1000 == 0) logger.info("loaded graphs in memory:" + singleInstanceGraph.sentences().size)
+
+      if (SRLClassifiers.SRLDataModel.sentences().size % 1000 == 0) {
+        logger.info("loaded graphs in memory:" + SRLClassifiers.SRLDataModel.sentences().size)
+      }
     }
 
     if (!testOnly) {

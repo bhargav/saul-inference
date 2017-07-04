@@ -181,7 +181,11 @@ class SRLMultiGraphDataModel(val parseViewName: String = SRLscalaConfigurator.SR
   /** Combines clause relative position and clause coverage */
   val clauseFeatures = property(relations, "clauseFeats") {
     rel: Relation =>
-      val clauseViewName = if (parseViewName.equals(ViewNames.PARSE_GOLD)) "CLAUSES_GOLD" else ViewNames.CLAUSES_STANFORD
+      val clauseViewName = parseViewName match {
+        case ViewNames.PARSE_GOLD => "CLAUSES_GOLD"
+        case ViewNames.PARSE_STANFORD => ViewNames.CLAUSES_STANFORD
+        case ViewNames.PARSE_CHARNIAK => ViewNames.CLAUSES_CHARNIAK
+      }
       fexFeatureExtractor(rel.getTarget, new ClauseFeatureExtractor(parseViewName, clauseViewName))
   }
 

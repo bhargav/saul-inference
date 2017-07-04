@@ -38,7 +38,7 @@ object SRLscalaConfigurator {
   val SRL_MODEL_DIR = "srl"
   val SRL_JAR_MODEL_PATH = "models"
 
-  // This is used to determine the parse view in SRL experiments (can be ViewNames.GOLD or ViewNames.STANFORD)
+  // This is used to determine the parse view in SRL experiments (can be ViewNames.GOLD or ViewNames.STANFORD or ViewNames.CHARNIAK)
   // For replicating the published experiments this needs to be GOLD
   val SRL_PARSE_VIEW = ViewNames.PARSE_GOLD
 
@@ -90,6 +90,8 @@ object RunningApps extends App with Logging {
     else if (TRAINING_MODE.equals("jointLoss")) "lTr"
     else ""
   }
+
+  logger.info(s"Running experiment $expName")
 
   val startTime = System.currentTimeMillis()
   logger.info("population starts.")
