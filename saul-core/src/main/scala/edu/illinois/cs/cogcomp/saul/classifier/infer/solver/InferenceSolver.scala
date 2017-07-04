@@ -6,6 +6,7 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
+import edu.illinois.cs.cogcomp.lbjava.infer.{ FirstOrderVariable, Inference, PropositionalConstraint }
 import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 
 import scala.collection.Seq
@@ -14,6 +15,13 @@ sealed trait OptimizationType
 case object Max extends OptimizationType
 case object Min extends OptimizationType
 
-trait InferenceSolver[T <: AnyRef, HEAD <: AnyRef] {
+trait InferenceSolver {
   def solve(constraintsOpt: Option[Constraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment]
+}
+
+trait PropositionalInference extends Inference {
+  /** Add a Propositional Constraint to the system of constraints to solve.
+    * @param c Propositional constraint to consider.
+    */
+  def addConstraint(c: PropositionalConstraint, variablesToConsider: Seq[FirstOrderVariable]): Unit
 }
