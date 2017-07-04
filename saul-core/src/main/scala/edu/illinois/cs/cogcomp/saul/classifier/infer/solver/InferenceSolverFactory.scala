@@ -8,9 +8,9 @@ package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
 import edu.illinois.cs.cogcomp.infer.ilp.{ BeamSearch, GurobiHook, OJalgoHook }
 import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
-import edu.illinois.cs.cogcomp.lbjava.infer.ad3.AD3Inference
-import edu.illinois.cs.cogcomp.lbjava.infer.maxbp.MaxBPInference
-import edu.illinois.cs.cogcomp.lbjava.infer.srmpsolver.SRMPInference
+import edu.illinois.cs.cogcomp.lbjava.infer.ad3.{ AD3Inference, AD3Parameters }
+import edu.illinois.cs.cogcomp.lbjava.infer.maxbp.{ MaxBPInference, MaxBPParameters }
+import edu.illinois.cs.cogcomp.lbjava.infer.srmpsolver.{ SRMPInference, SRMPParameters }
 import edu.illinois.cs.cogcomp.lbjava.infer._
 import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Assignment, Constraint }
 import edu.illinois.cs.cogcomp.saul.util.Logging
@@ -27,7 +27,7 @@ case object AD3 extends SolverType
 case object MaxBP extends SolverType
 case object SRMP extends SolverType
 
-final class AD3InferenceSolver extends AD3Inference with PropositionalInference {
+final class AD3InferenceSolver(options: AD3Parameters = new AD3Parameters) extends AD3Inference(null, options) with PropositionalInference {
   override def addConstraint(c: PropositionalConstraint, variablesToConsider: Seq[FirstOrderVariable]): Unit = {
     if (constraint == null)
       constraint = c
@@ -39,7 +39,7 @@ final class AD3InferenceSolver extends AD3Inference with PropositionalInference 
   }
 }
 
-final class MaxBPInferenceSolver extends MaxBPInference with PropositionalInference {
+final class MaxBPInferenceSolver(options: MaxBPParameters = new MaxBPParameters) extends MaxBPInference(null, options) with PropositionalInference {
   override def addConstraint(c: PropositionalConstraint, variablesToConsider: Seq[FirstOrderVariable]): Unit = {
     if (constraint == null)
       constraint = c
@@ -51,7 +51,7 @@ final class MaxBPInferenceSolver extends MaxBPInference with PropositionalInfere
   }
 }
 
-final class SRMPInferenceSolver extends SRMPInference with PropositionalInference {
+final class SRMPInferenceSolver(options: SRMPParameters = new SRMPParameters) extends SRMPInference(null, options) with PropositionalInference {
   override def addConstraint(c: PropositionalConstraint, variablesToConsider: Seq[FirstOrderVariable]): Unit = {
     if (constraint == null)
       constraint = c
@@ -92,7 +92,7 @@ object InferenceSolverFactory {
                   new ScoreSet(newScores)
               }
 
-              assert(newScoreSet.toArray.map(_.score).sum == 1.0)
+              assert(math.abs(newScoreSet.toArray.map(_.score).sum - 1.0) <= 1e-3)
               finalAssgn += (instance -> newScoreSet)
 
               logger.debug(s"$instance - Previous: ${newScoreSet.highScoreValue()}")
