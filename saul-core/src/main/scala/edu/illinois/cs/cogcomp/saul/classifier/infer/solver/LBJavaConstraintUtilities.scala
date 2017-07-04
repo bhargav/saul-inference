@@ -6,7 +6,6 @@
   */
 package edu.illinois.cs.cogcomp.saul.classifier.infer.solver
 
-import edu.illinois.cs.cogcomp.lbjava.classify.{ Score, ScoreSet }
 import edu.illinois.cs.cogcomp.lbjava.infer.{ PropositionalConstraint => LBJPropositionalConstraint, _ }
 
 import edu.illinois.cs.cogcomp.saul.classifier.infer.{ Constraint => SaulConstraint, _ }
@@ -14,45 +13,7 @@ import edu.illinois.cs.cogcomp.saul.util.Logging
 
 import scala.collection.mutable
 
-class LBJavaILPInferenceSolver[T <: AnyRef, HEAD <: AnyRef](solverType: SolverType)
-  extends InferenceSolver[T, HEAD] with Logging {
-
-  override def solve(constraintsOpt: Option[SaulConstraint[_]], priorAssignment: Seq[Assignment]): Seq[Assignment] = {
-    val solverHookInstance = ILPInferenceSolver.getSolverInstance(solverType)
-    val inference = new LBJavaPropositionalILPInference(solverHookInstance)
-    val variableBuffer = mutable.HashSet[FirstOrderVariable]()
-    val lbjConstraints = LBJavaILPInferenceSolver.transformToLBJConstraint(constraintsOpt.get, variableBuffer)
-
-    inference.addConstraint(lbjConstraints, variableBuffer.toSeq)
-    inference.infer()
-
-    val finalAssignment = priorAssignment.map({ assignment: Assignment =>
-      val finalAssgn = Assignment(assignment.learner)
-
-      assignment.foreach({
-        case (instance: Any, scoreset: ScoreSet) =>
-          logger.debug(s"$instance - Previous: ${scoreset.highScoreValue()}")
-          val label = inference.valueOf(assignment.learner.classifier, instance)
-          logger.debug(s"$instance - After ${inference.valueOf(assignment.learner.classifier, instance)}")
-
-          val newScores = scoreset.toArray
-            .map({ score: Score =>
-              new Score(score.value, if (score.value == label) 1.0 else 0.0)
-            })
-
-          assert(newScores.map(_.score).sum == 1.0)
-          finalAssgn += (instance -> new ScoreSet(newScores))
-      })
-
-      finalAssgn
-    })
-
-    finalAssignment
-  }
-
-}
-
-object LBJavaILPInferenceSolver extends Logging {
+object LBJavaConstraintUtilities extends Logging {
   def transformToLBJConstraint(constraint: SaulConstraint[_], variableSet: mutable.HashSet[FirstOrderVariable]): LBJPropositionalConstraint = {
     constraint match {
       case c: PropositionalEqualityConstraint[_] =>

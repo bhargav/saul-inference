@@ -17,14 +17,14 @@ import edu.illinois.cs.cogcomp.saul.util.Logging
 import scala.collection.JavaConverters._
 
 // Only supports Propositional Constraints
-class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInference.VERBOSITY_NONE) extends ILPInference(solver, verbosity) with Logging {
+class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInference.VERBOSITY_NONE) extends ILPInference(solver, verbosity) with PropositionalInference with Logging {
   // Hide the method that accepts constraints in logical form.
   override def addConstraint(c: FirstOrderConstraint): Unit = ???
 
   /** Add a Propositional Constraint to the system of constraints to solve.
     * @param c Propositional constraint to consider.
     */
-  def addConstraint(c: PropositionalConstraint, variablesToConsider: Seq[FirstOrderVariable]): Unit = {
+  override def addConstraint(c: PropositionalConstraint, variablesToConsider: Seq[FirstOrderVariable]): Unit = {
     solver.reset()
 
     if (constraint == null)
@@ -140,7 +140,7 @@ class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInf
               toPrint.append(": ")
               toPrint.append(v)
 
-              logger.info(toPrint.toString);
+              logger.info(toPrint.toString)
             }
           }
 

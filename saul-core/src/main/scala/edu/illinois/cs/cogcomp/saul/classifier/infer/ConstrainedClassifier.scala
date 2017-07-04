@@ -36,7 +36,7 @@ abstract class ConstrainedClassifier[T <: AnyRef, HEAD <: AnyRef](
   protected def optimizationType: OptimizationType = Max
 
   // This should be lazy so that correct solverType is passed in.
-  protected lazy val inferenceSolver: InferenceSolver[T, HEAD] = new ILPInferenceSolver[T, HEAD](solverType, optimizationType, onClassifier, useCaching)
+  protected lazy val inferenceSolver: InferenceSolver = InferenceSolverFactory.getSolver(solverType)
 
   def getClassSimpleNameForClassifier: String = this.getClass.getSimpleName
 
