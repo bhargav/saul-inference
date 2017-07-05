@@ -46,7 +46,6 @@ class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInf
     val indexMapLocal = new util.HashMap[PropositionalVariable, Integer]()
 
     solver.setMaximize(true)
-    constraint.consolidateVariables(variables)
 
     if (verbosity > ILPInference.VERBOSITY_NONE) logger.info("variables: (" + new Date() + ")")
 
