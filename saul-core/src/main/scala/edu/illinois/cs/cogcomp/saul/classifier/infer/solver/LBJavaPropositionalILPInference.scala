@@ -46,10 +46,16 @@ class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInf
     val indexMapLocal = new util.HashMap[PropositionalVariable, Integer]()
 
     solver.setMaximize(true)
-    constraint.consolidateVariables(variables)
+
+    /* try {
+      constraint.consolidateVariables(variables)
+    } catch {
+      case ex: Exception =>
+    }*/
 
     if (verbosity > ILPInference.VERBOSITY_NONE) logger.info("variables: (" + new Date() + ")")
 
+    /*
     val distinctVariablesWithScores = variables.values
       .asScala
       .groupBy({
@@ -69,37 +75,45 @@ class LBJavaPropositionalILPInference(solver: ILPSolver, verbosity: Int = ILPInf
     distinctVariablesWithScores
       .foreach({
         case (classifier: Learner, instance: Any, scoreset: ScoreSet) =>
-          val ss = getNormalizer(classifier).normalize(scoreset)
-          val scores = ss.toArray
+     */
+    variables.values
+      .asScala
+      .foreach({ variableObj =>
+        val v = variableObj.asInstanceOf[FirstOrderVariable]
+        val classifier = v.getClassifier
+        val scoreset = v.getScores
+        val instance = v.getExample
+        val ss = getNormalizer(classifier).normalize(scoreset)
+        val scores = ss.toArray
 
-          // putting scores in a real-valued array
-          val weights = scores.map(_.score)
-          val indexes = solver.addDiscreteVariable(weights)
+        // putting scores in a real-valued array
+        val weights = scores.map(_.score)
+        val indexes = solver.addDiscreteVariable(weights)
 
-          scores.zipWithIndex.foreach({
-            case (score: Score, idx: Int) =>
-              indexMapLocal.put(new PropositionalVariable(classifier, instance, score.value), new Integer(indexes(idx)))
+        scores.zipWithIndex.foreach({
+          case (score: Score, idx: Int) =>
+            indexMapLocal.put(new PropositionalVariable(classifier, instance, score.value), new Integer(indexes(idx)))
 
-              if (verbosity >= ILPInference.VERBOSITY_HIGH) {
-                val toPrint = new StringBuffer()
-                toPrint.append("x_")
-                toPrint.append(indexes(idx))
+            if (verbosity >= ILPInference.VERBOSITY_HIGH) {
+              val toPrint = new StringBuffer()
+              toPrint.append("x_")
+              toPrint.append(indexes(idx))
 
-                while (toPrint.length() < 8)
-                  toPrint.insert(0, ' ')
+              while (toPrint.length() < 8)
+                toPrint.insert(0, ' ')
 
-                toPrint.append(" (")
-                toPrint.append(score.score)
-                toPrint.append("): ")
-                toPrint.append(classifier)
-                toPrint.append("(")
-                toPrint.append(Inference.exampleToString(instance))
-                toPrint.append(") == ")
-                toPrint.append(score.value)
+              toPrint.append(" (")
+              toPrint.append(score.score)
+              toPrint.append("): ")
+              toPrint.append(classifier)
+              toPrint.append("(")
+              toPrint.append(Inference.exampleToString(instance))
+              toPrint.append(") == ")
+              toPrint.append(score.value)
 
-                logger.info(toPrint.toString)
-              }
-          })
+              logger.info(toPrint.toString)
+            }
+        })
       })
 
     indexMap = indexMapLocal

@@ -44,7 +44,7 @@ object SRLConstraints {
     // Each TextAnnotation is a sentence here.
     (sentences(x) ~> sentencesToRelations ~> relationsToPredicates).toList.distinct.ForAll { verb: Constituent =>
       val relationsList = (predicates(verb) ~> -relationsToPredicates).toList.distinct
-      val legalArgumentsList = legalArguments(verb) :+ "candidate"
+      val legalArgumentsList = legalArguments(verb) :+ "candidate" :+ "C-V"
 
       // XXX - Verify the use of isOneOf here.
       relationsList.ForAll { rel: Relation => argumentTypeLearner on rel isOneOf legalArgumentsList }

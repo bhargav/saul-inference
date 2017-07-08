@@ -152,86 +152,126 @@ object SRLEvaluation extends App with Logging {
     logger.info(s"Documents which failed SRL Annotation = $srlAnnotationFailures")
     logger.info(identifierTester.getPerformanceTable(true).toTextTable)
   } else {
-    val evaluationViewName = ViewNames.SRL_VERB
+    val evaluationViewName = "SRL_VERB_PREDICTED_BEAM_5" // ViewNames.SRL_VERB
+    val goldViewName = ViewNames.SRL_VERB
 
     // Evaluate constraints from available views only
     val annotatedDataset = fetchDatasetFromCache(annotatedDatasetCache)
       .partition(_.hasView(evaluationViewName))
 
-    val documentsWithoutView = annotatedDataset._2.size
-    logger.info(s"Documents without predicted view. $documentsWithoutView")
-
     val countList = new mutable.ListBuffer[String]()
+    val availableViews = new mutable.HashSet[String]()
 
     annotatedDataset._1
       .foreach({ document: TextAnnotation =>
         val predictedView = document.getView(evaluationViewName).asInstanceOf[PredicateArgumentView]
+        val goldView = document.getView(goldViewName).asInstanceOf[PredicateArgumentView]
+        availableViews ++= document.getAvailableViews.asScala
 
-        val predicates = predictedView.getPredicates
-        predicates.asScala.foreach({ predicate: Constituent =>
-          countList :+ "Verb"
+        val predicates = predictedView.getPredicates.asScala.filter({ pred =>
+          goldView.getPredicates.asScala.exists({ goldPred => goldPred.getStartSpan == pred.getStartSpan && goldPred.getEndSpan == pred.getEndSpan })
+        })
+        predicates.foreach({ predicate: Constituent =>
+          countList += "Verb"
 
           val predicateLemma = document.getView(ViewNames.LEMMA).getConstituentsCovering(predicate).get(0).getLabel
           val arguments = predictedView.getArguments(predicate)
-          val labelArgMap = arguments.asScala.groupBy(x => x.getRelationName)
-          val argMaxEnd = arguments.asScala.map(_.getTarget.getEndSpan).max + 1
-          val occupiedBitSet = new mutable.BitSet(argMaxEnd)
 
-          // No-Overlap constraint violation
-          val overlapTrue = arguments.asScala
-            .forall({ rel =>
-              val range = Range(rel.getTarget.getStartSpan, rel.getTarget.getEndSpan)
-              if (range.forall(occupiedBitSet.contains)) {
-                false
-              } else {
-                range.forall(occupiedBitSet.add)
-                true
-              }
+          if (arguments.asScala.size == 0) {
+            countList += "EmptyArgs"
+          } else {
+            val labelArgMap = arguments.asScala.groupBy(x => x.getRelationName)
+            val argMaxEnd = arguments.asScala.map(_.getTarget.getEndSpan).max + 1
+            val occupiedBitSet = new mutable.BitSet(argMaxEnd)
+
+            // No-Overlap constraint violation
+            val overlapTrue = arguments.asScala
+              .forall({ rel =>
+                val range = Range(rel.getTarget.getStartSpan, rel.getTarget.getEndSpan)
+                if (range.forall(occupiedBitSet.contains)) {
+                  false
+                } else {
+                  range.forall(occupiedBitSet.add)
+                  true
+                }
+              })
+            countList += s"NoOverlap:$overlapTrue"
+
+            // Legal Arguments Constraint
+            val legalArgsForVerbOrig = SRLscalaConfigurator.SRL_FRAME_MANAGER.getLegalArguments(predicateLemma).asScala
+            val legalArgsForVerb = legalArgsForVerbOrig.union(Set("C-V"))
+
+            val legalArgsTrue = labelArgMap.keySet.diff(legalArgsForVerb).size == 0
+            countList += s"LegalArgs:$legalArgsTrue"
+
+            // No duplicate Core Argument
+            val coreArgument = List("A0", "A1", "A2", "A3", "A4", "A5", "AA")
+            val coreArgsTrue = coreArgument.forall({ coreLabel =>
+              labelArgMap.get(coreLabel).forall(_.size <= 1)
             })
-          countList :+ s"NoOverlap:$overlapTrue"
+            countList += s"CoreArgs:$coreArgsTrue"
 
-          // Legal Arguments Constraint
-          val legalArgsForVerb = SRLscalaConfigurator.SRL_FRAME_MANAGER.getLegalArguments(predicateLemma).asScala += "C-V"
-          val legalArgsTrue = labelArgMap.keySet.diff(legalArgsForVerb).empty
-          countList :+ s"LegalArgs:$legalArgsTrue"
+            if (coreArgsTrue == false) {
+              logger.info(s"Core Args constraint failed at ${predicate.toString}")
+              logger.info(predictedView.toString)
+            }
 
-          // No duplicate Core Argument
-          val coreArgument = List("A0", "A1", "A2", "A3", "A4", "A5", "AA")
-          val coreArgsTrue = coreArgument.forall({ coreLabel =>
-            labelArgMap.get(coreLabel).forall(_.size <= 1)
-          })
-          countList :+ s"CoreArgs:$coreArgsTrue"
-
-          // Referential Argument
-          val rArgs = arguments.asScala.filter(_.getRelationName.startsWith("R-"))
-          val rArgsTrue = rArgs.forall({ rel =>
-            val relLabel = rel.getRelationName.substring(3)
-            labelArgMap.contains(relLabel)
-          })
-          countList :+ s"RArgs:$rArgsTrue"
-
-          // Continuation Argument
-          val cArgs = arguments.asScala.filter(_.getRelationName.startsWith("C-"))
-          val cArgsTrue = cArgs.forall({ rel =>
-            val relLabel = rel.getRelationName.substring(3)
-            labelArgMap.contains(relLabel)
-          })
-          countList :+ s"CArgs:$cArgsTrue"
-
-          val cArgsOrder = cArgs.forall({ rel =>
-            val relLabel = rel.getRelationName.substring(3)
-            labelArgMap.get(relLabel).exists({ buffer =>
-              buffer.forall { origRel: Relation =>
-                (origRel.getTarget.getStartSpan < rel.getTarget.getStartSpan) &&
-                  (origRel.getTarget.getEndSpan < rel.getTarget.getEndSpan)
-              }
+            // Referential Argument
+            val referentialArguments = Set("R-A1", "R-A2", "R-A3", "R-A4", "R-AA", "R-AM-ADV", "R-AM-CAU", "R-AM-EXT", "R-AM-LOC", "R-AM-MNR", "R-AM-PNC")
+            val rArgs = arguments.asScala.filter(x => referentialArguments.contains(x.getRelationName))
+            val rArgsTrue = rArgs.forall({ rel =>
+              val relLabel = rel.getRelationName.substring(2)
+              labelArgMap.contains(relLabel)
             })
-          })
-          countList :+ s"CArgsOrder:$cArgsOrder"
+            countList += s"RArgs:$rArgsTrue"
+
+            if (rArgsTrue == false) {
+              logger.info(s"RArgs failure for ${predicate.toString}")
+              logger.info(predictedView.toString)
+            }
+
+            // Continuation Argument
+            val continuationArguments = Set("C-A1", "C-A2", "C-A3", "C-A4", "C-A5", "C-AM-DIR", "C-AM-LOC", "C-AM-MNR", "C-AM-NEG", "C-AM-PNC")
+            val cArgs = arguments.asScala.filter(x => continuationArguments.contains(x.getRelationName))
+            val cArgsTrue = cArgs.forall({ rel =>
+              val relLabel = rel.getRelationName.substring(2)
+              labelArgMap.contains(relLabel)
+            })
+            countList += s"CArgs:$cArgsTrue"
+
+            if (cArgsTrue == false) {
+              logger.info(s"CArgs failure for predicate: ${predicate.toString}")
+              logger.info(labelArgMap.toString)
+              logger.info(predictedView.toString)
+              logger.info("Gold view")
+              logger.info(goldView.toString)
+            }
+
+            val cArgsOrder = cArgs.forall({ rel =>
+              val relLabel = rel.getRelationName.substring(2)
+              labelArgMap.get(relLabel).exists({ buffer =>
+                buffer.forall { origRel: Relation =>
+                  (origRel.getTarget.getStartSpan < rel.getTarget.getStartSpan) &&
+                    (origRel.getTarget.getEndSpan < rel.getTarget.getEndSpan)
+                }
+              })
+            })
+            countList += s"CArgsOrder:$cArgsOrder"
+          }
         })
-
-        logger.info(countList.groupBy(i => i).mapValues(_.size).toString())
       })
+
+    countList.groupBy(i => i).mapValues(_.size).foreach({
+      case (key, count) =>
+        logger.info(s"$key // $count")
+    })
+    logger.info(countList.groupBy(i => i).mapValues(_.size).toString())
+    logger.info(s"Current View: $evaluationViewName")
+    logger.info(s"Available Views: $availableViews")
+
+    val documentsWithoutView = annotatedDataset._2.size
+    logger.info(s"Documents without predicted view. $documentsWithoutView")
+    closeDatabase()
   }
 
   def putDatasetInCache(dataset: Seq[TextAnnotation], datasetName: String): Unit = {
