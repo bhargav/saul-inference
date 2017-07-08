@@ -10,7 +10,7 @@ import java.util.Properties
 
 import edu.illinois.cs.cogcomp.annotation.AnnotatorServiceConfigurator
 import edu.illinois.cs.cogcomp.core.datastructures.ViewNames
-import edu.illinois.cs.cogcomp.core.datastructures.textannotation.{ TextAnnotation, TreeView }
+import edu.illinois.cs.cogcomp.core.datastructures.textannotation._
 import edu.illinois.cs.cogcomp.core.datastructures.trees.Tree
 import edu.illinois.cs.cogcomp.core.experiments.ClassificationTester
 import edu.illinois.cs.cogcomp.core.experiments.evaluators.PredicateArgumentEvaluator
@@ -25,6 +25,7 @@ import edu.illinois.cs.cogcomp.saulexamples.nlp.TextAnnotationFactory
 import org.mapdb.{ DB, DBMaker, Serializer }
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 /** Evaluate the SRL Annotator using PredicateArgumentEvaluator.
   * This evaluation honors settings in the SRLscalaConfigurator class.
@@ -39,7 +40,7 @@ object SRLEvaluation extends App with Logging {
   var databaseInstance: Option[DB] = None
   val evaluateConstraints = true
 
-  if (evaluateConstraints == false) {
+  if (!evaluateConstraints) {
     logger.info(s"Initializing the annotator service: USE_CURATOR = ${SRLscalaConfigurator.USE_CURATOR}")
     val usePipelineCaching = true
     lazy val annotatorService = SRLscalaConfigurator.USE_CURATOR match {
@@ -151,10 +152,87 @@ object SRLEvaluation extends App with Logging {
     logger.info(s"Documents which failed SRL Annotation = $srlAnnotationFailures")
     logger.info(identifierTester.getPerformanceTable(true).toTextTable)
   } else {
+    val evaluationViewName = ViewNames.SRL_VERB
+
     // Evaluate constraints from available views only
     val annotatedDataset = fetchDatasetFromCache(annotatedDatasetCache)
-  }
+      .partition(_.hasView(evaluationViewName))
 
+    val documentsWithoutView = annotatedDataset._2.size
+    logger.info(s"Documents without predicted view. $documentsWithoutView")
+
+    val countList = new mutable.ListBuffer[String]()
+
+    annotatedDataset._1
+      .foreach({ document: TextAnnotation =>
+        val predictedView = document.getView(evaluationViewName).asInstanceOf[PredicateArgumentView]
+
+        val predicates = predictedView.getPredicates
+        predicates.asScala.foreach({ predicate: Constituent =>
+          countList :+ "Verb"
+
+          val predicateLemma = document.getView(ViewNames.LEMMA).getConstituentsCovering(predicate).get(0).getLabel
+          val arguments = predictedView.getArguments(predicate)
+          val labelArgMap = arguments.asScala.groupBy(x => x.getRelationName)
+          val argMaxEnd = arguments.asScala.map(_.getTarget.getEndSpan).max + 1
+          val occupiedBitSet = new mutable.BitSet(argMaxEnd)
+
+          // No-Overlap constraint violation
+          val overlapTrue = arguments.asScala
+            .forall({ rel =>
+              val range = Range(rel.getTarget.getStartSpan, rel.getTarget.getEndSpan)
+              if (range.forall(occupiedBitSet.contains)) {
+                false
+              } else {
+                range.forall(occupiedBitSet.add)
+                true
+              }
+            })
+          countList :+ s"NoOverlap:$overlapTrue"
+
+          // Legal Arguments Constraint
+          val legalArgsForVerb = SRLscalaConfigurator.SRL_FRAME_MANAGER.getLegalArguments(predicateLemma).asScala += "C-V"
+          val legalArgsTrue = labelArgMap.keySet.diff(legalArgsForVerb).empty
+          countList :+ s"LegalArgs:$legalArgsTrue"
+
+          // No duplicate Core Argument
+          val coreArgument = List("A0", "A1", "A2", "A3", "A4", "A5", "AA")
+          val coreArgsTrue = coreArgument.forall({ coreLabel =>
+            labelArgMap.get(coreLabel).forall(_.size <= 1)
+          })
+          countList :+ s"CoreArgs:$coreArgsTrue"
+
+          // Referential Argument
+          val rArgs = arguments.asScala.filter(_.getRelationName.startsWith("R-"))
+          val rArgsTrue = rArgs.forall({ rel =>
+            val relLabel = rel.getRelationName.substring(3)
+            labelArgMap.contains(relLabel)
+          })
+          countList :+ s"RArgs:$rArgsTrue"
+
+          // Continuation Argument
+          val cArgs = arguments.asScala.filter(_.getRelationName.startsWith("C-"))
+          val cArgsTrue = cArgs.forall({ rel =>
+            val relLabel = rel.getRelationName.substring(3)
+            labelArgMap.contains(relLabel)
+          })
+          countList :+ s"CArgs:$cArgsTrue"
+
+          val cArgsOrder = cArgs.forall({ rel =>
+            val relLabel = rel.getRelationName.substring(3)
+            labelArgMap.get(relLabel).exists({ buffer =>
+              buffer.forall { origRel: Relation =>
+                (origRel.getTarget.getStartSpan < rel.getTarget.getStartSpan) &&
+                  (origRel.getTarget.getEndSpan < rel.getTarget.getEndSpan)
+              }
+            })
+          })
+          countList :+ s"CArgsOrder:$cArgsOrder"
+        })
+
+        logger.info(countList.groupBy(i => i).mapValues(_.size).toString())
+      })
+  }
 
   def putDatasetInCache(dataset: Seq[TextAnnotation], datasetName: String): Unit = {
     openDatabase(datasetName)
